@@ -1,16 +1,20 @@
+"name": "dholera-app",
+"name": "roaring-tigers",
 {
-  "name": "roaring-tigers",
+  "name": "dholera-app",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^6.8.0",
+    "react-router-dom": "^6.30.3",
     "react-scripts": "5.0.1",
     "web-vitals": "^5.1.0"
   },
   "devDependencies": {
+    "ajv": "^8.18.0",
+    "ajv-keywords": "^5.1.0",
     "json-server": "^1.0.0-beta.3"
   },
   "scripts": {

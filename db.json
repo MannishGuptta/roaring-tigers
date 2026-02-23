@@ -1,0 +1,155 @@
+{
+  "rms": [
+    {
+      "id": "1",
+      "name": "Rajesh Kumar",
+      "phone": "9876543210",
+      "email": "rajesh@example.com",
+      "password": "rm123",
+      "status": "active"
+    },
+    {
+      "id": "2",
+      "name": "Priya Sharma",
+      "phone": "9876543211",
+      "email": "priya@example.com",
+      "password": "rm123",
+      "status": "active"
+    },
+    {
+      "id": "3",
+      "name": "Amit Patel",
+      "phone": "9876543212",
+      "email": "amit@example.com",
+      "password": "rm123",
+      "status": "active"
+    },
+    {
+      "id": "4",
+      "name": "Sneha Reddy",
+      "phone": "9876543213",
+      "email": "sneha@example.com",
+      "password": "rm123",
+      "status": "active"
+    },
+    {
+      "id": "5",
+      "name": "Vikram Singh",
+      "phone": "9876543214",
+      "email": "vikram@example.com",
+      "password": "rm123",
+      "status": "active"
+    },
+    {
+      "id": "6",
+      "name": "Deepa Nair",
+      "phone": "9876543215",
+      "email": "deepa@example.com",
+      "password": "rm123",
+      "status": "active"
+    }
+  ],
+  "attendance": [
+    {
+      "id": "c913",
+      "rm_id": "1",
+      "date": "2026-02-23",
+      "login_time": "2026-02-23T06:13:46.062Z"
+    },
+    {
+      "id": "c2f7",
+      "rm_id": "1",
+      "date": "2026-02-23",
+      "login_time": "2026-02-23T06:44:56.971Z"
+    },
+    {
+      "id": "83cb",
+      "rm_id": "1",
+      "date": "2026-02-23",
+      "login_time": "2026-02-23T07:06:17.014Z"
+    }
+  ],
+  "channel_partners": [
+    {
+      "id": "e057",
+      "cp_name": "XYZ XYZ",
+      "phone": "9810101010",
+      "email": "test@test.com",
+      "address": "45, ghjskkgd, hisjhjs, india",
+      "cp_type": "company",
+      "operating_markets": "Delhi NCR",
+      "industry": "Real Estate",
+      "expected_monthly_business": 5000000,
+      "rm_id": "1",
+      "onboard_date": "2026-02-23",
+      "status": "active"
+    },
+    {
+      "id": "0bb6",
+      "cp_name": "Test Partner",
+      "phone": "9876543210",
+      "email": "test@partner.com",
+      "address": "123 Test Street",
+      "cp_type": "individual",
+      "operating_markets": "Mumbai",
+      "industry": "Real Estate",
+      "expected_monthly_business": 100000,
+      "rm_id": "1",
+      "onboard_date": "2026-02-23",
+      "status": "active"
+    },
+    {
+      "id": "40de",
+      "cp_name": "test partner",
+      "phone": "9800000000",
+      "email": "test@test.co",
+      "address": "123, dffjfgg, mumbai",
+      "cp_type": "individual",
+      "operating_markets": "mumbai",
+      "industry": "real estate",
+      "expected_monthly_business": 1000000,
+      "rm_id": "1",
+      "onboard_date": "2026-02-23",
+      "status": "active"
+    }
+  ],
+  "meetings": [
+    {
+      "id": "d4cb",
+      "rm_id": "1",
+      "cp_id": "e057",
+      "meeting_type": "existing_cp",
+      "meeting_date": "2026-02-25T07:06",
+      "outcome": "interested",
+      "notes": "fjshkjhkjc jsgjhghjsgjhghjs",
+      "status": "completed"
+    },
+    {
+      "id": "6028",
+      "rm_id": "1",
+      "cp_id": "0bb6",
+      "meeting_type": "client",
+      "meeting_date": "2026-02-23T07:07",
+      "outcome": "deal_win",
+      "notes": "hshhshs",
+      "status": "completed"
+    }
+  ],
+  "sales": [
+    {
+      "id": "8ae3",
+      "rm_id": "1",
+      "cp_id": "0bb6",
+      "meeting_id": "6028",
+      "client_name": "test client",
+      "client_phone": "9812345678",
+      "client_email": "test@client.co",
+      "sale_amount": 2200000,
+      "product_service": "Deep Homes",
+      "invoice_number": "",
+      "sale_date": "2026-02-23",
+      "status": "completed"
+    }
+  ],
+  "clients": []
+}
