@@ -7,22 +7,7 @@
     { "id": "5", "name": "Vikram Singh", "phone": "9876543214", "email": "vikram@example.com", "password": "rm123", "status": "active" },
     { "id": "6", "name": "Deepa Nair", "phone": "9876543215", "email": "deepa@example.com", "password": "rm123", "status": "active" }
   ],
-  "channel_partners": [
-    {
-      "id": "1",
-      "rm_id": "1",
-      "cp_name": "Test CP",
-      "phone": "9999999999",
-      "email": "test@cp.com",
-      "address": "123 Test Street",
-      "cp_type": "individual",
-      "operating_markets": "Mumbai",
-      "industry": "Real Estate",
-      "expected_monthly_business": 100000,
-      "onboard_date": "2026-02-23",
-      "status": "active"
-    }
-  ],
+  "channel_partners": [],
   "meetings": [],
   "sales": [],
   "targets": []
