@@ -3,7 +3,7 @@ services:
     name: roaring-tigers-api
     env: node
     buildCommand: npm install
-    startCommand: npm run server
+    startCommand: npm start
     envVars:
       - key: NODE_VERSION
         value: 18
