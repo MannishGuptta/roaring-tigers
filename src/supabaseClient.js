@@ -5,7 +5,7 @@ export const supabase = {
         eq: (column2, value2) => ({
           then: async (resolve) => {
             try {
-              const response = await fetch(`http://localhost:3002/${table}?${column}=${value}&${column2}=${value2}`)
+              const response = await fetch(`https://roaring-tigers-backend.onrender.com/${table}?${column}=${value}&${column2}=${value2}`)
               const data = await response.json()
               resolve({ data, error: null })
             } catch (err) {
@@ -15,7 +15,7 @@ export const supabase = {
         }),
         then: async (resolve) => {
           try {
-            const response = await fetch(`http://localhost:3002/${table}?${column}=${value}`)
+            const response = await fetch(`https://roaring-tigers-backend.onrender.com/${table}?${column}=${value}`)
             const data = await response.json()
             resolve({ data, error: null })
           } catch (err) {
@@ -27,7 +27,7 @@ export const supabase = {
     insert: (records) => ({
       then: async (resolve) => {
         try {
-          const response = await fetch(`http://localhost:3002/${table}`, {
+          const response = await fetch(`https://roaring-tigers-backend.onrender.com/${table}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(records)
