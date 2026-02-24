@@ -14,19 +14,52 @@ function Login() {
     setError('');
 
     try {
-      // Use the correct backend URL
+      console.log('Fetching RMs from backend...');
       const response = await fetch('https://roaring-tigers-backend.onrender.com/rms');
-      const rms = await response.json();
       
-      const rm = rms.find(r => r.phone === phone && r.password === password);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const rms = await response.json();
+      console.log('RMs received:', rms);
+      
+      // Debug: Log what we're comparing
+      console.log('Looking for phone:', phone, 'password:', password);
+      
+      // Find matching RM - ensure we're comparing strings
+      const rm = rms.find(r => 
+        String(r.phone) === String(phone) && 
+        String(r.password) === String(password)
+      );
+      
+      console.log('Found RM:', rm);
       
       if (rm) {
+        // Store RM in session
         sessionStorage.setItem('rm', JSON.stringify(rm));
+        
+        // Mark attendance
+        try {
+          await fetch('https://roaring-tigers-backend.onrender.com/attendance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              rm_id: rm.id,
+              date: new Date().toISOString().split('T')[0],
+              login_time: new Date().toISOString()
+            })
+          });
+        } catch (attErr) {
+          console.log('Attendance marking failed but continuing:', attErr);
+        }
+        
         navigate('/dashboard');
       } else {
         setError('Invalid phone or password');
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('Connection error. Please try again.');
     } finally {
       setLoading(false);
@@ -111,7 +144,9 @@ function Login() {
           borderRadius: '5px',
           fontSize: '14px'
         }}>
-          <strong>Demo:</strong> 9876543210 / rm123
+          <strong>Demo Credentials:</strong><br />
+          Phone: 9876543210<br />
+          Password: rm123
         </div>
       </div>
     </div>
