@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
+  const [timeRange, setTimeRange] = useState('month'); // 'today', 'week', 'month'
   const [rms, setRms] = useState([]);
   const [cps, setCps] = useState([]);
   const [sales, setSales] = useState([]);
@@ -10,10 +11,11 @@ function AdminDashboard() {
   const [targets, setTargets] = useState([]);
   const [rmPerformance, setRmPerformance] = useState([]);
   const [teamStats, setTeamStats] = useState({});
+  const [kpiAnalysis, setKpiAnalysis] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Modal states
+  // Modal states (keep all existing modal states)
   const [showRMModal, setShowRMModal] = useState(false);
   const [showCPModal, setShowCPModal] = useState(false);
   const [showTargetModal, setShowTargetModal] = useState(false);
@@ -60,7 +62,41 @@ function AdminDashboard() {
       return;
     }
     loadAllData();
-  }, [navigate]);
+  }, [navigate, timeRange]);
+
+  const getDateRange = (range) => {
+    const today = new Date();
+    let startDate = new Date();
+    
+    switch(range) {
+      case 'today':
+        startDate = new Date(today.setHours(0, 0, 0, 0));
+        break;
+      case 'week':
+        // Week starts on Monday
+        const day = today.getDay();
+        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+        startDate = new Date(today.setDate(diff));
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'month':
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        break;
+      default:
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+    }
+    
+    return startDate;
+  };
+
+  const getPeriodLabel = () => {
+    switch(timeRange) {
+      case 'today': return 'Today';
+      case 'week': return 'This Week';
+      case 'month': return 'This Month';
+      default: return 'This Month';
+    }
+  };
 
   const loadAllData = async () => {
     setLoading(true);
@@ -86,11 +122,14 @@ function AdminDashboard() {
       setMeetings(meetingsData);
       setTargets(targetsData);
       
-      // Calculate RM performance
-      calculateRmPerformance(rmsData, cpsData, salesData, meetingsData, targetsData);
+      // Calculate RM performance with time range
+      calculateRmPerformance(rmsData, cpsData, salesData, meetingsData, targetsData, timeRange);
       
       // Calculate team stats
-      calculateTeamStats(rmsData, cpsData, salesData, meetingsData);
+      calculateTeamStats(rmsData, cpsData, salesData, meetingsData, timeRange);
+      
+      // Calculate KPI analysis
+      calculateKPIAnalysis(rmsData, cpsData, salesData, meetingsData, targetsData, timeRange);
       
     } catch (err) {
       console.error('Error loading data:', err);
@@ -100,47 +139,52 @@ function AdminDashboard() {
     }
   };
 
-  const calculateRmPerformance = (rmsData, cpsData, salesData, meetingsData, targetsData) => {
+  const calculateRmPerformance = (rmsData, cpsData, salesData, meetingsData, targetsData, range) => {
+    const startDate = getDateRange(range);
+    
     const performance = rmsData.map(rm => {
       const rmId = String(rm.id);
       
       // Get RM's CPs
       const rmCPs = cpsData.filter(cp => String(cp.rm_id) === rmId);
       
-      // Get RM's sales
-      const rmSales = salesData.filter(sale => String(sale.rm_id) === rmId);
+      // Get RM's sales in date range
+      const rmSales = salesData.filter(sale => 
+        String(sale.rm_id) === rmId && 
+        new Date(sale.sale_date) >= startDate
+      );
       
-      // Get RM's meetings
-      const rmMeetings = meetingsData.filter(meeting => String(meeting.rm_id) === rmId);
+      // Get RM's meetings in date range
+      const rmMeetings = meetingsData.filter(meeting => 
+        String(meeting.rm_id) === rmId && 
+        new Date(meeting.meeting_date) >= startDate
+      );
       
-      // Calculate active CPs (CPs with sales)
+      // CPs onboarded in date range
+      const rmCPsOnboarded = rmCPs.filter(cp => 
+        cp.onboard_date && new Date(cp.onboard_date) >= startDate
+      );
+      
+      // Calculate active CPs (CPs with sales in date range)
       const cpWithSales = new Set();
       rmSales.forEach(sale => {
         if (sale.cp_id) cpWithSales.add(String(sale.cp_id));
       });
-      const activeCPs = rmCPs.filter(cp => cpWithSales.has(String(cp.id)));
+      const activeCPs = cpWithSales.size;
       
-      // Calculate current month stats
-      const today = new Date();
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      
-      const currentMonthSales = rmSales.filter(sale => new Date(sale.sale_date) >= monthStart);
-      const currentMonthMeetings = rmMeetings.filter(meeting => new Date(meeting.meeting_date) >= monthStart);
-      const currentMonthCPs = rmCPs.filter(cp => new Date(cp.onboard_date) >= monthStart);
-      
-      // Get current month target
+      // Get current period target
       const currentPeriod = getCurrentPeriod();
       const rmTarget = targetsData.find(t => String(t.rm_id) === rmId && t.period === currentPeriod);
       
-      // Calculate achievements vs targets
+      // Calculate achievements
       const achievements = {
-        cp_onboarding: currentMonthCPs.length,
-        active_cp: activeCPs.length,
-        meetings: currentMonthMeetings.length,
-        revenue: currentMonthSales.reduce((sum, s) => sum + (s.sale_amount || 0), 0)
+        cp_onboarding: rmCPsOnboarded.length,
+        active_cp: activeCPs,
+        meetings: rmMeetings.length,
+        revenue: rmSales.reduce((sum, s) => sum + (s.sale_amount || 0), 0)
       };
       
-      // Calculate percentages
+      // Calculate percentages vs target
       const percentages = {
         cp_onboarding: rmTarget ? Math.round((achievements.cp_onboarding / rmTarget.cp_onboarding_target) * 100) : 0,
         active_cp: rmTarget ? Math.round((achievements.active_cp / rmTarget.active_cp_target) * 100) : 0,
@@ -148,40 +192,45 @@ function AdminDashboard() {
         revenue: rmTarget ? Math.round((achievements.revenue / rmTarget.revenue_target) * 100) : 0
       };
       
+      // Calculate daily targets for remaining days
+      const today = new Date();
+      const daysElapsed = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24));
+      const totalDays = range === 'today' ? 1 : range === 'week' ? 7 : 
+        new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+      const daysRemaining = totalDays - daysElapsed;
+      
+      // Calculate required daily rate to meet target
+      const requiredDaily = {
+        cp_onboarding: rmTarget ? (rmTarget.cp_onboarding_target - achievements.cp_onboarding) / Math.max(1, daysRemaining) : 0,
+        active_cp: rmTarget ? (rmTarget.active_cp_target - achievements.active_cp) / Math.max(1, daysRemaining) : 0,
+        meetings: rmTarget ? (rmTarget.meetings_target - achievements.meetings) / Math.max(1, daysRemaining) : 0,
+        revenue: rmTarget ? (rmTarget.revenue_target - achievements.revenue) / Math.max(1, daysRemaining) : 0
+      };
+      
       // Determine status
       const avgPercentage = Object.values(percentages).reduce((a, b) => a + b, 0) / 4;
       let status = '🔴 Off Track';
-      if (avgPercentage >= 80) status = '✅ On Track';
-      else if (avgPercentage >= 50) status = '⚠️ At Risk';
+      if (avgPercentage >= 100) status = '✅ Achieved';
+      else if (avgPercentage >= 80) status = '⚠️ At Risk';
+      else if (avgPercentage >= 50) status = '📉 Behind';
       
       return {
         ...rm,
-        stats: {
-          totalCPs: rmCPs.length,
-          activeCPs: activeCPs.length,
-          totalSales: rmSales.length,
-          totalMeetings: rmMeetings.length,
-          totalRevenue: rmSales.reduce((sum, s) => sum + (s.sale_amount || 0), 0)
-        },
-        currentMonth: {
-          cp_onboarding: currentMonthCPs.length,
-          active_cp: activeCPs.length,
-          meetings: currentMonthMeetings.length,
-          revenue: currentMonthSales.reduce((sum, s) => sum + (s.sale_amount || 0), 0)
-        },
+        achievements,
         targets: rmTarget || null,
         percentages,
+        requiredDaily,
         status,
-        avgPercentage
+        avgPercentage,
+        daysRemaining
       };
     });
     
     setRmPerformance(performance);
   };
 
-  const calculateTeamStats = (rmsData, cpsData, salesData, meetingsData) => {
-    const today = new Date();
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const calculateTeamStats = (rmsData, cpsData, salesData, meetingsData, range) => {
+    const startDate = getDateRange(range);
     
     const stats = {
       totalRMs: rmsData.length,
@@ -190,11 +239,11 @@ function AdminDashboard() {
       totalMeetings: meetingsData.length,
       totalRevenue: salesData.reduce((sum, s) => sum + (s.sale_amount || 0), 0),
       
-      currentMonth: {
-        cp_onboarding: cpsData.filter(cp => new Date(cp.onboard_date) >= monthStart).length,
-        sales: salesData.filter(sale => new Date(sale.sale_date) >= monthStart).length,
-        meetings: meetingsData.filter(meeting => new Date(meeting.meeting_date) >= monthStart).length,
-        revenue: salesData.filter(sale => new Date(sale.sale_date) >= monthStart)
+      periodStats: {
+        cp_onboarding: cpsData.filter(cp => cp.onboard_date && new Date(cp.onboard_date) >= startDate).length,
+        sales: salesData.filter(sale => new Date(sale.sale_date) >= startDate).length,
+        meetings: meetingsData.filter(meeting => new Date(meeting.meeting_date) >= startDate).length,
+        revenue: salesData.filter(sale => new Date(sale.sale_date) >= startDate)
                          .reduce((sum, s) => sum + (s.sale_amount || 0), 0)
       },
       
@@ -214,6 +263,118 @@ function AdminDashboard() {
     setTeamStats(stats);
   };
 
+  const calculateKPIAnalysis = (rmsData, cpsData, salesData, meetingsData, targetsData, range) => {
+    const startDate = getDateRange(range);
+    const currentPeriod = getCurrentPeriod();
+    
+    // Aggregate team targets for current period
+    const teamTargets = {
+      cp_onboarding: 0,
+      active_cp: 0,
+      meetings: 0,
+      revenue: 0
+    };
+    
+    targetsData.forEach(target => {
+      if (target.period === currentPeriod) {
+        teamTargets.cp_onboarding += target.cp_onboarding_target || 0;
+        teamTargets.active_cp += target.active_cp_target || 0;
+        teamTargets.meetings += target.meetings_target || 0;
+        teamTargets.revenue += target.revenue_target || 0;
+      }
+    });
+    
+    // Calculate team achievements in date range
+    const teamAchievements = {
+      cp_onboarding: cpsData.filter(cp => cp.onboard_date && new Date(cp.onboard_date) >= startDate).length,
+      active_cp: new Set(salesData.filter(s => new Date(s.sale_date) >= startDate).map(s => s.cp_id)).size,
+      meetings: meetingsData.filter(m => new Date(m.meeting_date) >= startDate).length,
+      revenue: salesData.filter(s => new Date(s.sale_date) >= startDate)
+                       .reduce((sum, s) => sum + (s.sale_amount || 0), 0)
+    };
+    
+    // Calculate percentages
+    const percentages = {
+      cp_onboarding: teamTargets.cp_onboarding ? Math.round((teamAchievements.cp_onboarding / teamTargets.cp_onboarding) * 100) : 0,
+      active_cp: teamTargets.active_cp ? Math.round((teamAchievements.active_cp / teamTargets.active_cp) * 100) : 0,
+      meetings: teamTargets.meetings ? Math.round((teamAchievements.meetings / teamTargets.meetings) * 100) : 0,
+      revenue: teamTargets.revenue ? Math.round((teamAchievements.revenue / teamTargets.revenue) * 100) : 0
+    };
+    
+    // Calculate remaining days and required daily rates
+    const today = new Date();
+    const daysElapsed = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24));
+    const totalDays = range === 'today' ? 1 : range === 'week' ? 7 : 
+      new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const daysRemaining = totalDays - daysElapsed;
+    
+    const requiredDaily = {
+      cp_onboarding: (teamTargets.cp_onboarding - teamAchievements.cp_onboarding) / Math.max(1, daysRemaining),
+      active_cp: (teamTargets.active_cp - teamAchievements.active_cp) / Math.max(1, daysRemaining),
+      meetings: (teamTargets.meetings - teamAchievements.meetings) / Math.max(1, daysRemaining),
+      revenue: (teamTargets.revenue - teamAchievements.revenue) / Math.max(1, daysRemaining)
+    };
+    
+    // Predict end of period values
+    const projectedValues = {
+      cp_onboarding: teamAchievements.cp_onboarding + (requiredDaily.cp_onboarding * daysRemaining),
+      active_cp: teamAchievements.active_cp + (requiredDaily.active_cp * daysRemaining),
+      meetings: teamAchievements.meetings + (requiredDaily.meetings * daysRemaining),
+      revenue: teamAchievements.revenue + (requiredDaily.revenue * daysRemaining)
+    };
+    
+    // Generate recommendations
+    const recommendations = {};
+    
+    if (percentages.cp_onboarding < 80) {
+      recommendations.cp_onboarding = {
+        gap: teamTargets.cp_onboarding - teamAchievements.cp_onboarding,
+        dailyNeeded: requiredDaily.cp_onboarding.toFixed(1),
+        action: requiredDaily.cp_onboarding > 2 ? 
+          "Urgent: Need to significantly increase CP onboarding. Focus on high-potential leads." :
+          "Focus on converting interested prospects to onboarded CPs."
+      };
+    }
+    
+    if (percentages.active_cp < 80) {
+      recommendations.active_cp = {
+        gap: teamTargets.active_cp - teamAchievements.active_cp,
+        dailyNeeded: requiredDaily.active_cp.toFixed(1),
+        action: "Work with CPs who have shown interest to close their first deals."
+      };
+    }
+    
+    if (percentages.meetings < 80) {
+      recommendations.meetings = {
+        gap: teamTargets.meetings - teamAchievements.meetings,
+        dailyNeeded: requiredDaily.meetings.toFixed(1),
+        action: requiredDaily.meetings > 3 ?
+          "Increase meeting frequency. Block dedicated prospecting time daily." :
+          "Maintain current meeting pace with quality focus."
+      };
+    }
+    
+    if (percentages.revenue < 80) {
+      recommendations.revenue = {
+        gap: formatCurrency(teamTargets.revenue - teamAchievements.revenue),
+        dailyNeeded: formatCurrency(requiredDaily.revenue),
+        action: requiredDaily.revenue > 100000 ?
+          "Focus on high-value deals and follow up on pending proposals." :
+          "Push for closing smaller deals quickly to build momentum."
+      };
+    }
+    
+    setKpiAnalysis({
+      teamTargets,
+      teamAchievements,
+      percentages,
+      requiredDaily,
+      projectedValues,
+      recommendations,
+      daysRemaining
+    });
+  };
+
   const getCurrentPeriod = () => {
     const date = new Date();
     const month = date.toLocaleString('default', { month: 'long' }).toLowerCase();
@@ -221,14 +382,11 @@ function AdminDashboard() {
     return `${month}-${year}`;
   };
 
-  // CRUD Handlers
+  // CRUD Handlers (keep all existing handlers)
   const handleDelete = async (type, id) => {
     if (!window.confirm(`Are you sure you want to delete this ${type}?`)) return;
-    
     try {
-      await fetch(`${API_URL}/${type}/${id}`, {
-        method: 'DELETE'
-      });
+      await fetch(`${API_URL}/${type}/${id}`, { method: 'DELETE' });
       loadAllData();
     } catch (err) {
       console.error('Error deleting:', err);
@@ -236,16 +394,9 @@ function AdminDashboard() {
     }
   };
 
-  // RM Handlers
   const handleAddRM = () => {
     setEditingItem(null);
-    setRmForm({
-      name: '',
-      phone: '',
-      email: '',
-      password: '',
-      status: 'active'
-    });
+    setRmForm({ name: '', phone: '', email: '', password: '', status: 'active' });
     setShowRMModal(true);
   };
 
@@ -266,39 +417,27 @@ function AdminDashboard() {
     try {
       const url = editingItem ? `${API_URL}/rms/${editingItem.id}` : `${API_URL}/rms`;
       const method = editingItem ? 'PUT' : 'POST';
-      
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(rmForm)
       });
-      
       if (response.ok) {
         setShowRMModal(false);
         loadAllData();
-      } else {
-        alert('Failed to save RM');
-      }
+      } else alert('Failed to save RM');
     } catch (err) {
       console.error('Error saving RM:', err);
       alert('Error saving RM');
     }
   };
 
-  // CP Handlers
   const handleAddCP = () => {
     setEditingItem(null);
     setCpForm({
-      cp_name: '',
-      phone: '',
-      email: '',
-      address: '',
-      cp_type: 'individual',
-      operating_markets: '',
-      industry: '',
-      expected_monthly_business: '',
-      rm_id: rms[0]?.id || '',
-      status: 'active'
+      cp_name: '', phone: '', email: '', address: '', cp_type: 'individual',
+      operating_markets: '', industry: '', expected_monthly_business: '',
+      rm_id: rms[0]?.id || '', status: 'active'
     });
     setShowCPModal(true);
   };
@@ -325,26 +464,21 @@ function AdminDashboard() {
     try {
       const url = editingItem ? `${API_URL}/channel_partners/${editingItem.id}` : `${API_URL}/channel_partners`;
       const method = editingItem ? 'PUT' : 'POST';
-      
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cpForm)
       });
-      
       if (response.ok) {
         setShowCPModal(false);
         loadAllData();
-      } else {
-        alert('Failed to save CP');
-      }
+      } else alert('Failed to save CP');
     } catch (err) {
       console.error('Error saving CP:', err);
       alert('Error saving CP');
     }
   };
 
-  // Target Handlers
   const handleAddTarget = (rm) => {
     setEditingItem(null);
     setTargetForm({
@@ -369,19 +503,15 @@ function AdminDashboard() {
         meetings_target: parseInt(targetForm.meetings_target) || 0,
         revenue_target: parseInt(targetForm.revenue_target) || 0
       };
-      
       const response = await fetch(`${API_URL}/targets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(targetData)
       });
-      
       if (response.ok) {
         setShowTargetModal(false);
         loadAllData();
-      } else {
-        alert('Failed to save target');
-      }
+      } else alert('Failed to save target');
     } catch (err) {
       console.error('Error saving target:', err);
       alert('Error saving target');
@@ -439,76 +569,326 @@ function AdminDashboard() {
         <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
       </div>
 
+      {/* Time Range Filter */}
+      <div style={styles.filterBar}>
+        <div style={styles.filterLabel}>View performance for:</div>
+        <div style={styles.filterButtons}>
+          <button
+            onClick={() => setTimeRange('today')}
+            style={{
+              ...styles.filterBtn,
+              background: timeRange === 'today' ? '#3498db' : '#f8f9fa',
+              color: timeRange === 'today' ? 'white' : '#495057',
+              borderColor: timeRange === 'today' ? '#3498db' : '#dee2e6'
+            }}
+          >
+            Today
+          </button>
+          <button
+            onClick={() => setTimeRange('week')}
+            style={{
+              ...styles.filterBtn,
+              background: timeRange === 'week' ? '#3498db' : '#f8f9fa',
+              color: timeRange === 'week' ? 'white' : '#495057',
+              borderColor: timeRange === 'week' ? '#3498db' : '#dee2e6'
+            }}
+          >
+            This Week
+          </button>
+          <button
+            onClick={() => setTimeRange('month')}
+            style={{
+              ...styles.filterBtn,
+              background: timeRange === 'month' ? '#3498db' : '#f8f9fa',
+              color: timeRange === 'month' ? 'white' : '#495057',
+              borderColor: timeRange === 'month' ? '#3498db' : '#dee2e6'
+            }}
+          >
+            This Month
+          </button>
+        </div>
+        <div style={styles.filterInfo}>
+          Showing {getPeriodLabel()} performance
+        </div>
+      </div>
+
       {/* Team Overview Stats */}
       <div style={styles.statsGrid}>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>👥</div>
           <div>
-            <div style={styles.statValue}>{teamStats.totalRMs || rms.length}</div>
+            <div style={styles.statValue}>{teamStats.totalRMs}</div>
             <div style={styles.statLabel}>Total RMs</div>
           </div>
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>🤝</div>
           <div>
-            <div style={styles.statValue}>{teamStats.totalCPs || cps.length}</div>
+            <div style={styles.statValue}>{teamStats.totalCPs}</div>
             <div style={styles.statLabel}>Total CPs</div>
           </div>
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>✅</div>
           <div>
-            <div style={styles.statValue}>{teamStats.activeCPs || 0}</div>
+            <div style={styles.statValue}>{teamStats.activeCPs}</div>
             <div style={styles.statLabel}>Active CPs</div>
           </div>
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>💰</div>
           <div>
-            <div style={styles.statValue}>{teamStats.totalSales || sales.length}</div>
-            <div style={styles.statLabel}>Total Sales</div>
+            <div style={styles.statValue}>{teamStats.periodStats?.sales || 0}</div>
+            <div style={styles.statLabel}>Sales {getPeriodLabel()}</div>
           </div>
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>📅</div>
           <div>
-            <div style={styles.statValue}>{teamStats.totalMeetings || meetings.length}</div>
-            <div style={styles.statLabel}>Total Meetings</div>
+            <div style={styles.statValue}>{teamStats.periodStats?.meetings || 0}</div>
+            <div style={styles.statLabel}>Meetings {getPeriodLabel()}</div>
           </div>
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>💵</div>
           <div>
-            <div style={styles.statValue}>{formatCurrency(teamStats.totalRevenue || 0)}</div>
-            <div style={styles.statLabel}>Total Revenue</div>
+            <div style={styles.statValue}>{formatCurrency(teamStats.periodStats?.revenue || 0)}</div>
+            <div style={styles.statLabel}>Revenue {getPeriodLabel()}</div>
           </div>
         </div>
       </div>
 
-      {/* Current Month Performance */}
-      <div style={styles.monthlyStats}>
-        <h2 style={styles.sectionTitle}>📊 {getCurrentPeriod().toUpperCase()} Performance</h2>
-        <div style={styles.monthlyGrid}>
-          <div style={styles.monthlyCard}>
-            <div style={styles.monthlyLabel}>CPs Onboarded</div>
-            <div style={styles.monthlyValue}>{teamStats.currentMonth?.cp_onboarding || 0}</div>
-          </div>
-          <div style={styles.monthlyCard}>
-            <div style={styles.monthlyLabel}>Sales Closed</div>
-            <div style={styles.monthlyValue}>{teamStats.currentMonth?.sales || 0}</div>
-          </div>
-          <div style={styles.monthlyCard}>
-            <div style={styles.monthlyLabel}>Meetings Held</div>
-            <div style={styles.monthlyValue}>{teamStats.currentMonth?.meetings || 0}</div>
-          </div>
-          <div style={styles.monthlyCard}>
-            <div style={styles.monthlyLabel}>Revenue Generated</div>
-            <div style={styles.monthlyValue}>{formatCurrency(teamStats.currentMonth?.revenue || 0)}</div>
+      {/* KPI Analysis Section */}
+      {kpiAnalysis.teamTargets && (
+        <div style={styles.kpiSection}>
+          <h2 style={styles.sectionTitle}>📊 Team KPI Analysis - {getPeriodLabel()}</h2>
+          
+          <div style={styles.kpiGrid}>
+            {/* CP Onboarding KPI */}
+            <div style={styles.kpiCard}>
+              <div style={styles.kpiHeader}>
+                <span style={styles.kpiTitle}>CP Onboarding</span>
+                <span style={styles.kpiTarget}>Target: {kpiAnalysis.teamTargets.cp_onboarding}</span>
+              </div>
+              <div style={styles.kpiProgress}>
+                <div style={styles.progressLabels}>
+                  <span>Achieved: {kpiAnalysis.teamAchievements.cp_onboarding}</span>
+                  <span>{kpiAnalysis.percentages.cp_onboarding}%</span>
+                </div>
+                <div style={styles.progressBar}>
+                  <div style={{
+                    ...styles.progressFill,
+                    width: `${Math.min(kpiAnalysis.percentages.cp_onboarding, 100)}%`,
+                    backgroundColor: getProgressColor(kpiAnalysis.percentages.cp_onboarding)
+                  }} />
+                </div>
+              </div>
+              
+              <div style={styles.kpiDetails}>
+                <div style={styles.kpiRow}>
+                  <span>Remaining:</span>
+                  <strong>{kpiAnalysis.teamTargets.cp_onboarding - kpiAnalysis.teamAchievements.cp_onboarding}</strong>
+                </div>
+                <div style={styles.kpiRow}>
+                  <span>Days left:</span>
+                  <strong>{kpiAnalysis.daysRemaining}</strong>
+                </div>
+                <div style={styles.kpiRow}>
+                  <span>Daily needed:</span>
+                  <strong>{kpiAnalysis.requiredDaily.cp_onboarding?.toFixed(1)}</strong>
+                </div>
+                <div style={styles.kpiRow}>
+                  <span>Projected:</span>
+                  <strong>{Math.round(kpiAnalysis.projectedValues.cp_onboarding)}</strong>
+                </div>
+              </div>
+              
+              {kpiAnalysis.recommendations.cp_onboarding && (
+                <div style={styles.recommendation}>
+                  <span style={styles.recommendationIcon}>💡</span>
+                  <span style={styles.recommendationText}>
+                    {kpiAnalysis.recommendations.cp_onboarding.action}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Active CP KPI */}
+            <div style={styles.kpiCard}>
+              <div style={styles.kpiHeader}>
+                <span style={styles.kpiTitle}>Active CPs</span>
+                <span style={styles.kpiTarget}>Target: {kpiAnalysis.teamTargets.active_cp}</span>
+              </div>
+              <div style={styles.kpiProgress}>
+                <div style={styles.progressLabels}>
+                  <span>Achieved: {kpiAnalysis.teamAchievements.active_cp}</span>
+                  <span>{kpiAnalysis.percentages.active_cp}%</span>
+                </div>
+                <div style={styles.progressBar}>
+                  <div style={{
+                    ...styles.progressFill,
+                    width: `${Math.min(kpiAnalysis.percentages.active_cp, 100)}%`,
+                    backgroundColor: getProgressColor(kpiAnalysis.percentages.active_cp)
+                  }} />
+                </div>
+              </div>
+              
+              <div style={styles.kpiDetails}>
+                <div style={styles.kpiRow}>
+                  <span>Remaining:</span>
+                  <strong>{kpiAnalysis.teamTargets.active_cp - kpiAnalysis.teamAchievements.active_cp}</strong>
+                </div>
+                <div style={styles.kpiRow}>
+                  <span>Days left:</span>
+                  <strong>{kpiAnalysis.daysRemaining}</strong>
+                </div>
+                <div style={styles.kpiRow}>
+                  <span>Daily needed:</span>
+                  <strong>{kpiAnalysis.requiredDaily.active_cp?.toFixed(1)}</strong>
+                </div>
+                <div style={styles.kpiRow}>
+                  <span>Projected:</span>
+                  <strong>{Math.round(kpiAnalysis.projectedValues.active_cp)}</strong>
+                </div>
+              </div>
+              
+              {kpiAnalysis.recommendations.active_cp && (
+                <div style={styles.recommendation}>
+                  <span style={styles.recommendationIcon}>💡</span>
+                  <span style={styles.recommendationText}>
+                    {kpiAnalysis.recommendations.active_cp.action}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Meetings KPI */}
+            <div style={styles.kpiCard}>
+              <div style={styles.kpiHeader}>
+                <span style={styles.kpiTitle}>Meetings</span>
+                <span style={styles.kpiTarget}>Target: {kpiAnalysis.teamTargets.meetings}</span>
+              </div>
+              <div style={styles.kpiProgress}>
+                <div style={styles.progressLabels}>
+                  <span>Achieved: {kpiAnalysis.teamAchievements.meetings}</span>
+                  <span>{kpiAnalysis.percentages.meetings}%</span>
+                </div>
+                <div style={styles.progressBar}>
+                  <div style={{
+                    ...styles.progressFill,
+                    width: `${Math.min(kpiAnalysis.percentages.meetings, 100)}%`,
+                    backgroundColor: getProgressColor(kpiAnalysis.percentages.meetings)
+                  }} />
+                </div>
+              </div>
+              
+              <div style={styles.kpiDetails}>
+                <div style={styles.kpiRow}>
+                  <span>Remaining:</span>
+                  <strong>{kpiAnalysis.teamTargets.meetings - kpiAnalysis.teamAchievements.meetings}</strong>
+                </div>
+                <div style={styles.kpiRow}>
+                  <span>Days left:</span>
+                  <strong>{kpiAnalysis.daysRemaining}</strong>
+                </div>
+                <div style={styles.kpiRow}>
+                  <span>Daily needed:</span>
+                  <strong>{kpiAnalysis.requiredDaily.meetings?.toFixed(1)}</strong>
+                </div>
+                <div style={styles.kpiRow}>
+                  <span>Projected:</span>
+                  <strong>{Math.round(kpiAnalysis.projectedValues.meetings)}</strong>
+                </div>
+              </div>
+              
+              {kpiAnalysis.recommendations.meetings && (
+                <div style={styles.recommendation}>
+                  <span style={styles.recommendationIcon}>💡</span>
+                  <span style={styles.recommendationText}>
+                    {kpiAnalysis.recommendations.meetings.action}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Revenue KPI */}
+            <div style={styles.kpiCard}>
+              <div style={styles.kpiHeader}>
+                <span style={styles.kpiTitle}>Revenue</span>
+                <span style={styles.kpiTarget}>Target: {formatCurrency(kpiAnalysis.teamTargets.revenue)}</span>
+              </div>
+              <div style={styles.kpiProgress}>
+                <div style={styles.progressLabels}>
+                  <span>Achieved: {formatCurrency(kpiAnalysis.teamAchievements.revenue)}</span>
+                  <span>{kpiAnalysis.percentages.revenue}%</span>
+                </div>
+                <div style={styles.progressBar}>
+                  <div style={{
+                    ...styles.progressFill,
+                    width: `${Math.min(kpiAnalysis.percentages.revenue, 100)}%`,
+                    backgroundColor: getProgressColor(kpiAnalysis.percentages.revenue)
+                  }} />
+                </div>
+              </div>
+              
+              <div style={styles.kpiDetails}>
+                <div style={styles.kpiRow}>
+                  <span>Remaining:</span>
+                  <strong>{formatCurrency(kpiAnalysis.teamTargets.revenue - kpiAnalysis.teamAchievements.revenue)}</strong>
+                </div>
+                <div style={styles.kpiRow}>
+                  <span>Days left:</span>
+                  <strong>{kpiAnalysis.daysRemaining}</strong>
+                </div>
+                <div style={styles.kpiRow}>
+                  <span>Daily needed:</span>
+                  <strong>{formatCurrency(kpiAnalysis.requiredDaily.revenue)}</strong>
+                </div>
+                <div style={styles.kpiRow}>
+                  <span>Projected:</span>
+                  <strong>{formatCurrency(kpiAnalysis.projectedValues.revenue)}</strong>
+                </div>
+              </div>
+              
+              {kpiAnalysis.recommendations.revenue && (
+                <div style={styles.recommendation}>
+                  <span style={styles.recommendationIcon}>💡</span>
+                  <span style={styles.recommendationText}>
+                    {kpiAnalysis.recommendations.revenue.action}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
+      )}
+
+      {/* Top Performer & Needs Attention */}
+      <div style={styles.alertsSection}>
+        {teamStats.topPerformer && (
+          <div style={styles.topPerformerCard}>
+            <h3>🏆 Top Performer - {getPeriodLabel()}</h3>
+            <div style={styles.topPerformerDetails}>
+              <span style={styles.topPerformerName}>{teamStats.topPerformer.name}</span>
+              <span style={styles.topPerformerScore}>{Math.round(teamStats.topPerformer.avgPercentage)}% achieved</span>
+            </div>
+          </div>
+        )}
+        
+        {teamStats.needsAttention && teamStats.needsAttention.length > 0 && (
+          <div style={styles.attentionCard}>
+            <h3>🚨 RMs Needing Attention</h3>
+            {teamStats.needsAttention.map(rm => (
+              <div key={rm.id} style={styles.attentionItem}>
+                <span>{rm.name}</span>
+                <span style={styles.attentionScore}>{Math.round(rm.avgPercentage)}%</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Tabs */}
+      {/* Tabs (keep all existing tabs) */}
       <div style={styles.tabs}>
         <button onClick={() => setActiveTab('overview')} style={{...styles.tab, background: activeTab === 'overview' ? '#3498db' : '#f8f9fa', color: activeTab === 'overview' ? 'white' : '#333'}}>📊 Team Overview</button>
         <button onClick={() => setActiveTab('rms')} style={{...styles.tab, background: activeTab === 'rms' ? '#3498db' : '#f8f9fa', color: activeTab === 'rms' ? 'white' : '#333'}}>👥 RMs ({rms.length})</button>
@@ -518,36 +898,56 @@ function AdminDashboard() {
         <button onClick={() => setActiveTab('meetings')} style={{...styles.tab, background: activeTab === 'meetings' ? '#3498db' : '#f8f9fa', color: activeTab === 'meetings' ? 'white' : '#333'}}>📅 Meetings ({meetings.length})</button>
       </div>
 
-      {/* Content */}
+      {/* Content - Keep existing tab content */}
       <div style={styles.content}>
-        {/* Team Overview Tab */}
+        {/* Team Overview Tab - Enhanced with RM performance cards */}
         {activeTab === 'overview' && (
           <div>
-            <h2 style={styles.sectionTitle}>Team Performance Summary</h2>
-            {rmPerformance.length === 0 ? (
-              <p style={styles.noData}>No RM data available</p>
-            ) : (
-              <div style={styles.teamSummary}>
-                {rmPerformance.map(rm => (
-                  <div key={rm.id} style={styles.teamRow}>
-                    <div style={styles.teamRowHeader}>
-                      <span style={styles.rmName}>{rm.name}</span>
-                      <span style={{...styles.statusBadge, background: rm.status === 'active' ? '#d4edda' : '#f8d7da'}}>
-                        {rm.status}
-                      </span>
+            <h2 style={styles.sectionTitle}>Individual RM Performance - {getPeriodLabel()}</h2>
+            <div style={styles.rmPerformanceGrid}>
+              {rmPerformance.map(rm => (
+                <div key={rm.id} style={styles.rmPerformanceCard}>
+                  <div style={styles.rmCardHeader}>
+                    <span style={styles.rmCardName}>{rm.name}</span>
+                    <span style={{...styles.rmCardStatus, background: rm.status === 'active' ? '#d4edda' : '#f8d7da'}}>
+                      {rm.status}
+                    </span>
+                  </div>
+                  
+                  <div style={styles.rmCardStats}>
+                    <div style={styles.rmStat}>
+                      <span>CPs:</span>
+                      <strong>{rm.achievements.cp_onboarding}</strong>
+                      {rm.targets && <small>/{rm.targets.cp_onboarding_target}</small>}
                     </div>
-                    <div style={styles.teamStats}>
-                      <div>CPs: {rm.stats.totalCPs} | Active: {rm.stats.activeCPs}</div>
-                      <div>Sales: {rm.stats.totalSales} | Revenue: {formatCurrency(rm.stats.totalRevenue)}</div>
+                    <div style={styles.rmStat}>
+                      <span>Active:</span>
+                      <strong>{rm.achievements.active_cp}</strong>
+                      {rm.targets && <small>/{rm.targets.active_cp_target}</small>}
+                    </div>
+                    <div style={styles.rmStat}>
+                      <span>Meetings:</span>
+                      <strong>{rm.achievements.meetings}</strong>
+                      {rm.targets && <small>/{rm.targets.meetings_target}</small>}
+                    </div>
+                    <div style={styles.rmStat}>
+                      <span>Revenue:</span>
+                      <strong>{formatCurrency(rm.achievements.revenue)}</strong>
+                      {rm.targets && <small>/{formatCurrency(rm.targets.revenue_target)}</small>}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  
+                  <div style={styles.rmCardFooter}>
+                    <span style={styles.rmProgress}>{Math.round(rm.avgPercentage)}% achieved</span>
+                    <span style={styles.rmStatus}>{rm.status}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* RMs Tab */}
+        {/* Keep all other tabs (rms, targets, cps, sales, meetings) exactly as they were */}
         {activeTab === 'rms' && (
           <div>
             <div style={styles.tabHeader}>
@@ -589,7 +989,6 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* Targets Tab */}
         {activeTab === 'targets' && (
           <div>
             <h2 style={styles.sectionTitle}>Monthly Targets</h2>
@@ -627,7 +1026,6 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* CPs Tab */}
         {activeTab === 'cps' && (
           <div>
             <div style={styles.tabHeader}>
@@ -662,8 +1060,8 @@ function AdminDashboard() {
                         </span>
                       </td>
                       <td>
-                        <button onClick={() => handleEditCP(cp)} style={styles.editBtn} title="Edit">✏️</button>
-                        <button onClick={() => handleDelete('channel_partners', cp.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
+                        <button onClick={() => handleEditCP(cp)} style={styles.editBtn}>✏️</button>
+                        <button onClick={() => handleDelete('channel_partners', cp.id)} style={styles.deleteBtn}>🗑️</button>
                       </td>
                     </tr>
                   );
@@ -673,7 +1071,6 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* Sales Tab */}
         {activeTab === 'sales' && (
           <div>
             <h2 style={styles.sectionTitle}>Sales Records</h2>
@@ -712,7 +1109,6 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* Meetings Tab */}
         {activeTab === 'meetings' && (
           <div>
             <h2 style={styles.sectionTitle}>Meeting Logs</h2>
@@ -750,7 +1146,7 @@ function AdminDashboard() {
         )}
       </div>
 
-      {/* RM Modal */}
+      {/* Keep all modals (RM Modal, CP Modal, Target Modal) exactly as they were */}
       {showRMModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
@@ -773,7 +1169,6 @@ function AdminDashboard() {
         </div>
       )}
 
-      {/* CP Modal */}
       {showCPModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
@@ -807,7 +1202,6 @@ function AdminDashboard() {
         </div>
       )}
 
-      {/* Target Modal */}
       {showTargetModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
@@ -888,6 +1282,41 @@ const styles = {
     borderRadius: '5px',
     cursor: 'pointer'
   },
+  filterBar: {
+    background: 'white',
+    padding: '15px 20px',
+    borderRadius: '10px',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+    marginBottom: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '20px',
+    flexWrap: 'wrap'
+  },
+  filterLabel: {
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#495057'
+  },
+  filterButtons: {
+    display: 'flex',
+    gap: '10px',
+    flexWrap: 'wrap'
+  },
+  filterBtn: {
+    padding: '8px 16px',
+    border: '2px solid',
+    borderRadius: '5px',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'all 0.3s'
+  },
+  filterInfo: {
+    fontSize: '14px',
+    color: '#666',
+    marginLeft: 'auto'
+  },
   statsGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -914,7 +1343,7 @@ const styles = {
     fontSize: '11px',
     color: '#666'
   },
-  monthlyStats: {
+  kpiSection: {
     background: 'white',
     padding: '20px',
     borderRadius: '10px',
@@ -925,26 +1354,122 @@ const styles = {
     fontSize: '18px',
     margin: '0 0 20px 0'
   },
-  monthlyGrid: {
+  kpiGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
     gap: '15px'
   },
-  monthlyCard: {
+  kpiCard: {
     background: '#f8f9fa',
     padding: '15px',
     borderRadius: '8px',
-    textAlign: 'center'
+    border: '1px solid #dee2e6'
   },
-  monthlyLabel: {
-    fontSize: '13px',
-    color: '#666',
+  kpiHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: '10px'
+  },
+  kpiTitle: {
+    fontWeight: 'bold',
+    fontSize: '16px'
+  },
+  kpiTarget: {
+    fontSize: '12px',
+    color: '#666'
+  },
+  kpiProgress: {
+    marginBottom: '10px'
+  },
+  progressLabels: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '12px',
     marginBottom: '5px'
   },
-  monthlyValue: {
-    fontSize: '20px',
+  progressBar: {
+    height: '8px',
+    background: '#e9ecef',
+    borderRadius: '4px',
+    overflow: 'hidden',
+    marginBottom: '10px'
+  },
+  progressFill: {
+    height: '100%',
+    transition: 'width 0.3s ease'
+  },
+  kpiDetails: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '5px',
+    fontSize: '12px',
+    marginBottom: '10px'
+  },
+  kpiRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '2px 0'
+  },
+  recommendation: {
+    display: 'flex',
+    gap: '5px',
+    padding: '8px',
+    background: '#fff3cd',
+    borderRadius: '4px',
+    fontSize: '12px',
+    marginTop: '10px'
+  },
+  recommendationIcon: {
+    fontSize: '14px'
+  },
+  recommendationText: {
+    flex: 1,
+    color: '#856404'
+  },
+  alertsSection: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '15px',
+    marginBottom: '20px'
+  },
+  topPerformerCard: {
+    background: '#d4edda',
+    padding: '15px',
+    borderRadius: '8px',
+    border: '1px solid #c3e6cb'
+  },
+  topPerformerDetails: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginTop: '10px'
+  },
+  topPerformerName: {
     fontWeight: 'bold',
-    color: '#333'
+    fontSize: '16px'
+  },
+  topPerformerScore: {
+    background: '#155724',
+    color: 'white',
+    padding: '3px 8px',
+    borderRadius: '4px'
+  },
+  attentionCard: {
+    background: '#f8d7da',
+    padding: '15px',
+    borderRadius: '8px',
+    border: '1px solid #f5c6cb'
+  },
+  attentionItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '8px',
+    margin: '5px 0',
+    background: 'white',
+    borderRadius: '4px'
+  },
+  attentionScore: {
+    color: '#dc3545',
+    fontWeight: 'bold'
   },
   tabs: {
     display: 'flex',
@@ -989,36 +1514,52 @@ const styles = {
     fontSize: '14px',
     fontWeight: 'bold'
   },
-  noData: {
-    textAlign: 'center',
-    color: '#999',
-    padding: '40px'
+  rmPerformanceGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+    gap: '15px'
   },
-  teamSummary: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px'
-  },
-  teamRow: {
+  rmPerformanceCard: {
     background: '#f8f9fa',
     padding: '15px',
-    borderRadius: '8px'
+    borderRadius: '8px',
+    border: '1px solid #dee2e6'
   },
-  teamRowHeader: {
+  rmCardHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     marginBottom: '10px'
   },
-  rmName: {
-    fontWeight: 'bold'
+  rmCardName: {
+    fontWeight: 'bold',
+    fontSize: '16px'
   },
-  statusBadge: {
-    padding: '3px 8px',
-    borderRadius: '3px',
+  rmCardStatus: {
+    padding: '2px 8px',
+    borderRadius: '4px',
     fontSize: '12px'
   },
-  teamStats: {
-    fontSize: '13px',
+  rmCardStats: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '8px',
+    marginBottom: '10px'
+  },
+  rmStat: {
+    fontSize: '12px'
+  },
+  rmCardFooter: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    borderTop: '1px solid #dee2e6',
+    paddingTop: '8px',
+    fontSize: '12px'
+  },
+  rmProgress: {
+    fontWeight: 'bold',
+    color: '#3498db'
+  },
+  rmStatus: {
     color: '#666'
   },
   table: {
