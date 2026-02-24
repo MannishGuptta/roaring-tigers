@@ -49,6 +49,7 @@ function AdminDashboard() {
   });
 
   const navigate = useNavigate();
+  const baseUrl = 'https://roaring-tigers-api.onrender.com';
 
   useEffect(() => {
     const admin = sessionStorage.getItem('admin');
@@ -63,9 +64,13 @@ function AdminDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const baseUrl = 'https://roaring-tigers-api.onrender.com';
-      
       console.log('Fetching data from:', baseUrl);
+      
+      // Test if API is reachable by checking /rms endpoint
+      const testResponse = await fetch(`${baseUrl}/rms`);
+      if (!testResponse.ok) {
+        throw new Error(`API returned ${testResponse.status}`);
+      }
       
       // Fetch all data in parallel
       const [rmsRes, cpsRes, salesRes, meetingsRes, targetsRes] = await Promise.all([
@@ -76,11 +81,6 @@ function AdminDashboard() {
         fetch(`${baseUrl}/targets`)
       ]);
       
-      // Check if any request failed
-      if (!rmsRes.ok || !cpsRes.ok || !salesRes.ok || !meetingsRes.ok || !targetsRes.ok) {
-        throw new Error('Failed to fetch data from server');
-      }
-      
       // Parse all responses
       const rmsData = await rmsRes.json();
       const cpsData = await cpsRes.json();
@@ -89,17 +89,12 @@ function AdminDashboard() {
       const targetsData = await targetsRes.json();
       
       console.log('Data loaded successfully:', {
-        rms: rmsData.length,
-        cps: cpsData.length,
-        sales: salesData.length,
-        meetings: meetingsData.length,
-        targets: targetsData.length
+        rms: rmsData?.length || 0,
+        cps: cpsData?.length || 0,
+        sales: salesData?.length || 0,
+        meetings: meetingsData?.length || 0,
+        targets: targetsData?.length || 0
       });
-      
-      // Log first few items to verify structure
-      if (rmsData.length > 0) console.log('Sample RM:', rmsData[0]);
-      if (cpsData.length > 0) console.log('Sample CP:', cpsData[0]);
-      if (salesData.length > 0) console.log('Sample Sale:', salesData[0]);
       
       setRms(Array.isArray(rmsData) ? rmsData : []);
       setCps(Array.isArray(cpsData) ? cpsData : []);
@@ -120,7 +115,6 @@ function AdminDashboard() {
     if (!window.confirm(`Are you sure you want to delete this ${type}?`)) return;
     
     try {
-      const baseUrl = 'https://roaring-tigers-api.onrender.com';
       const response = await fetch(`${baseUrl}/${type}/${id}`, {
         method: 'DELETE'
       });
@@ -164,7 +158,6 @@ function AdminDashboard() {
   const handleRMSave = async (e) => {
     e.preventDefault();
     try {
-      const baseUrl = 'https://roaring-tigers-api.onrender.com';
       const url = editingItem ? `${baseUrl}/rms/${editingItem.id}` : `${baseUrl}/rms`;
       const method = editingItem ? 'PUT' : 'POST';
       
@@ -224,7 +217,6 @@ function AdminDashboard() {
   const handleCPSave = async (e) => {
     e.preventDefault();
     try {
-      const baseUrl = 'https://roaring-tigers-api.onrender.com';
       const url = editingItem ? `${baseUrl}/channel_partners/${editingItem.id}` : `${baseUrl}/channel_partners`;
       const method = editingItem ? 'PUT' : 'POST';
       
@@ -263,7 +255,6 @@ function AdminDashboard() {
   const handleTargetSave = async (e) => {
     e.preventDefault();
     try {
-      const baseUrl = 'https://roaring-tigers-api.onrender.com';
       const targetData = {
         rm_id: targetForm.rm_id,
         period: targetForm.period,
@@ -342,8 +333,16 @@ function AdminDashboard() {
   if (error) {
     return (
       <div style={styles.errorContainer}>
-        <div style={styles.error}>Error: {error}</div>
-        <button onClick={loadAllData} style={styles.retryBtn}>Retry</button>
+        <div style={styles.errorIcon}>⚠️</div>
+        <h2 style={styles.errorTitle}>Connection Error</h2>
+        <p style={styles.errorMessage}>{error}</p>
+        <p style={styles.errorHint}>Make sure your backend is running at: {baseUrl}</p>
+        <div style={styles.errorActions}>
+          <button onClick={loadAllData} style={styles.retryBtn}>🔄 Retry</button>
+          <a href={`${baseUrl}/rms`} target="_blank" rel="noopener noreferrer" style={styles.checkLink}>
+            Test API
+          </a>
+        </div>
       </div>
     );
   }
@@ -453,11 +452,11 @@ function AdminDashboard() {
 
       {/* Tabs */}
       <div style={styles.tabs}>
-        <button onClick={() => setActiveTab('rms')} style={{...styles.tab, background: activeTab === 'rms' ? '#3498db' : '#f8f9fa', color: activeTab === 'rms' ? 'white' : '#333'}}>👥 RMs</button>
-        <button onClick={() => setActiveTab('cps')} style={{...styles.tab, background: activeTab === 'cps' ? '#3498db' : '#f8f9fa', color: activeTab === 'cps' ? 'white' : '#333'}}>🤝 CPs</button>
-        <button onClick={() => setActiveTab('sales')} style={{...styles.tab, background: activeTab === 'sales' ? '#3498db' : '#f8f9fa', color: activeTab === 'sales' ? 'white' : '#333'}}>💰 Sales</button>
-        <button onClick={() => setActiveTab('meetings')} style={{...styles.tab, background: activeTab === 'meetings' ? '#3498db' : '#f8f9fa', color: activeTab === 'meetings' ? 'white' : '#333'}}>📅 Meetings</button>
-        <button onClick={() => setActiveTab('targets')} style={{...styles.tab, background: activeTab === 'targets' ? '#3498db' : '#f8f9fa', color: activeTab === 'targets' ? 'white' : '#333'}}>🎯 Targets</button>
+        <button onClick={() => setActiveTab('rms')} style={{...styles.tab, background: activeTab === 'rms' ? '#3498db' : '#f8f9fa', color: activeTab === 'rms' ? 'white' : '#333'}}>👥 RMs ({rms.length})</button>
+        <button onClick={() => setActiveTab('cps')} style={{...styles.tab, background: activeTab === 'cps' ? '#3498db' : '#f8f9fa', color: activeTab === 'cps' ? 'white' : '#333'}}>🤝 CPs ({cps.length})</button>
+        <button onClick={() => setActiveTab('sales')} style={{...styles.tab, background: activeTab === 'sales' ? '#3498db' : '#f8f9fa', color: activeTab === 'sales' ? 'white' : '#333'}}>💰 Sales ({sales.length})</button>
+        <button onClick={() => setActiveTab('meetings')} style={{...styles.tab, background: activeTab === 'meetings' ? '#3498db' : '#f8f9fa', color: activeTab === 'meetings' ? 'white' : '#333'}}>📅 Meetings ({meetings.length})</button>
+        <button onClick={() => setActiveTab('targets')} style={{...styles.tab, background: activeTab === 'targets' ? '#3498db' : '#f8f9fa', color: activeTab === 'targets' ? 'white' : '#333'}}>🎯 Targets ({targets.length})</button>
       </div>
 
       {/* Content */}
@@ -466,7 +465,7 @@ function AdminDashboard() {
         {activeTab === 'rms' && (
           <div>
             <div style={styles.tabHeader}>
-              <h2 style={styles.tabTitle}>Relationship Managers ({rms.length})</h2>
+              <h2 style={styles.tabTitle}>Relationship Managers</h2>
               <button onClick={handleAddRM} style={styles.addButton}>➕ Add RM</button>
             </div>
             {rms.length === 0 ? (
@@ -512,7 +511,7 @@ function AdminDashboard() {
         {activeTab === 'cps' && (
           <div>
             <div style={styles.tabHeader}>
-              <h2 style={styles.tabTitle}>Channel Partners ({cps.length})</h2>
+              <h2 style={styles.tabTitle}>Channel Partners</h2>
               <button onClick={handleAddCP} style={styles.addButton}>➕ Add CP</button>
             </div>
             {cps.length === 0 ? (
@@ -561,7 +560,7 @@ function AdminDashboard() {
         {/* Sales Tab */}
         {activeTab === 'sales' && (
           <div>
-            <h2 style={styles.tabTitle}>Sales Records ({sales.length})</h2>
+            <h2 style={styles.tabTitle}>Sales Records</h2>
             {sales.length === 0 ? (
               <p style={styles.noData}>No sales found.</p>
             ) : (
@@ -588,7 +587,7 @@ function AdminDashboard() {
                         <td>{cp?.cp_name || sale.cp_id}</td>
                         <td>{sale.applicant_name}</td>
                         <td>{formatCurrency(sale.sale_amount)}</td>
-                        <td>{sale.sale_date}</td>
+                        <td>{new Date(sale.sale_date).toLocaleDateString()}</td>
                         <td>
                           <button onClick={() => handleDelete('sales', sale.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
                         </td>
@@ -604,7 +603,7 @@ function AdminDashboard() {
         {/* Meetings Tab */}
         {activeTab === 'meetings' && (
           <div>
-            <h2 style={styles.tabTitle}>Meeting Logs ({meetings.length})</h2>
+            <h2 style={styles.tabTitle}>Meeting Logs</h2>
             {meetings.length === 0 ? (
               <p style={styles.noData}>No meetings found.</p>
             ) : (
@@ -645,7 +644,7 @@ function AdminDashboard() {
         {/* Targets Tab */}
         {activeTab === 'targets' && (
           <div>
-            <h2 style={styles.tabTitle}>Monthly Targets ({targets.length})</h2>
+            <h2 style={styles.tabTitle}>Monthly Targets</h2>
             {targets.length === 0 ? (
               <p style={styles.noData}>No targets found. Click 🎯 next to an RM to set a target.</p>
             ) : (
@@ -788,11 +787,35 @@ const styles = {
     justifyContent: 'center',
     alignItems: 'center',
     height: '100vh',
-    gap: '20px'
+    padding: '20px',
+    textAlign: 'center',
+    maxWidth: '500px',
+    margin: '0 auto'
   },
-  error: {
-    fontSize: '18px',
-    color: '#dc3545'
+  errorIcon: {
+    fontSize: '48px',
+    marginBottom: '20px'
+  },
+  errorTitle: {
+    fontSize: '24px',
+    color: '#333',
+    marginBottom: '10px'
+  },
+  errorMessage: {
+    fontSize: '16px',
+    color: '#666',
+    marginBottom: '10px'
+  },
+  errorHint: {
+    fontSize: '14px',
+    color: '#999',
+    marginBottom: '20px'
+  },
+  errorActions: {
+    display: 'flex',
+    gap: '15px',
+    flexWrap: 'wrap',
+    justifyContent: 'center'
   },
   retryBtn: {
     padding: '10px 20px',
@@ -800,7 +823,16 @@ const styles = {
     color: 'white',
     border: 'none',
     borderRadius: '5px',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    fontSize: '14px'
+  },
+  checkLink: {
+    padding: '10px 20px',
+    background: '#28a745',
+    color: 'white',
+    textDecoration: 'none',
+    borderRadius: '5px',
+    fontSize: '14px'
   },
   header: {
     display: 'flex',
