@@ -12,7 +12,7 @@ function AdminDashboard() {
   const [rawResponse, setRawResponse] = useState(null);
   
   const navigate = useNavigate();
-  const baseUrl = 'https://roaring-tigers-api.onrender.com';
+  const baseUrl = 'https://roaring-tigers-backend.onrender.com';
 
   useEffect(() => {
     const admin = sessionStorage.getItem('admin');

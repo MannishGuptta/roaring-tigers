@@ -40,7 +40,7 @@ function Dashboard() {
 
   const loadTargets = async (rmId) => {
     try {
-      const response = await fetch(`https://roaring-tigers-api.onrender.com/targets?rm_id=${rmId}`);
+      const response = await fetch(`https://roaring-tigers-backend.onrender.com/targets?rm_id=${rmId}`);
       const allTargets = await response.json();
       const currentPeriod = getCurrentPeriod();
       const rmTarget = allTargets.find(t => t.period === currentPeriod);
@@ -149,7 +149,7 @@ function Dashboard() {
     setLoading(true);
     try {
       const startDate = getDateRange(range);
-      const baseUrl = 'https://roaring-tigers-api.onrender.com';
+      const baseUrl = 'https://roaring-tigers-backend.onrender.com';
       
       // Get all data
       const [cpRes, meetingRes, salesRes] = await Promise.all([

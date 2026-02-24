@@ -28,7 +28,7 @@ function MyCPs() {
       console.log('Fetching CPs for RM ID:', rmId);
       
       // First, get ALL channel partners
-      const response = await fetch('https://roaring-tigers-api.onrender.com/channel_partners');
+      const response = await fetch('https://roaring-tigers-backend.onrender.com/channel_partners');
       console.log('Response status:', response.status);
       
       if (!response.ok) {

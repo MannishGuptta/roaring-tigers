@@ -43,7 +43,7 @@ function MeetingLogger() {
 
   const fetchCPs = async (rmId) => {
     try {
-      const response = await fetch('https://roaring-tigers-api.onrender.com/channel_partners');
+      const response = await fetch('https://roaring-tigers-backend.onrender.com/channel_partners');
       const allCPs = await response.json();
       // Filter CPs for this RM
       const rmCPs = allCPs.filter(cp => String(cp.rm_id) === String(rmId));
@@ -102,7 +102,7 @@ function MeetingLogger() {
       }
 
       // Save meeting
-      const meetingResponse = await fetch('https://roaring-tigers-api.onrender.com/meetings', {
+      const meetingResponse = await fetch('https://roaring-tigers-backend.onrender.com/meetings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(meetingData)
@@ -129,7 +129,7 @@ function MeetingLogger() {
           status: 'completed'
         };
 
-        const saleResponse = await fetch('https://roaring-tigers-api.onrender.com/sales', {
+        const saleResponse = await fetch('https://roaring-tigers-backend.onrender.com/sales', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(saleData)
