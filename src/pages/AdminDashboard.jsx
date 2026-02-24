@@ -9,10 +9,9 @@ function AdminDashboard() {
   const [targets, setTargets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [rawResponse, setRawResponse] = useState(null);
+  const [apiUrl, setApiUrl] = useState('https://roaring-tigers-backend.onrender.com');
   
   const navigate = useNavigate();
-  const baseUrl = 'https://roaring-tigers-backend.onrender.com';
 
   useEffect(() => {
     const admin = sessionStorage.getItem('admin');
@@ -20,48 +19,64 @@ function AdminDashboard() {
       navigate('/admin');
       return;
     }
-    fetchWithDebug();
+    fetchAllData();
   }, [navigate]);
 
-  const fetchWithDebug = async () => {
+  const fetchAllData = async () => {
     setLoading(true);
+    setError(null);
+    
     try {
-      // First, get the raw response as text
-      const response = await fetch(`${baseUrl}/rms`);
-      const text = await response.text();
+      console.log('Fetching from:', apiUrl);
       
-      setRawResponse({
-        url: `${baseUrl}/rms`,
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get('content-type'),
-        text: text.substring(0, 500) // First 500 chars
-      });
+      // Test health endpoint first
+      const healthRes = await fetch(`${apiUrl}/health`);
+      console.log('Health check status:', healthRes.status);
       
-      // Try to parse it
-      try {
-        const data = JSON.parse(text);
-        setRms(Array.isArray(data) ? data : []);
-        
-        // If successful, fetch other data
-        const [cpsRes, salesRes, meetingsRes, targetsRes] = await Promise.all([
-          fetch(`${baseUrl}/channel_partners`).then(r => r.json()),
-          fetch(`${baseUrl}/sales`).then(r => r.json()),
-          fetch(`${baseUrl}/meetings`).then(r => r.json()),
-          fetch(`${baseUrl}/targets`).then(r => r.json())
-        ]);
-        
-        setCps(cpsRes);
-        setSales(salesRes);
-        setMeetings(meetingsRes);
-        setTargets(targetsRes);
-        
-      } catch (e) {
-        setError(`JSON Parse Error: ${e.message}`);
+      if (!healthRes.ok) {
+        throw new Error(`Health check failed: ${healthRes.status}`);
       }
       
+      // Fetch all data
+      const [rmsRes, cpsRes, salesRes, meetingsRes, targetsRes] = await Promise.all([
+        fetch(`${apiUrl}/rms`),
+        fetch(`${apiUrl}/channel_partners`),
+        fetch(`${apiUrl}/sales`),
+        fetch(`${apiUrl}/meetings`),
+        fetch(`${apiUrl}/targets`)
+      ]);
+      
+      console.log('Response statuses:', {
+        rms: rmsRes.status,
+        cps: cpsRes.status,
+        sales: salesRes.status,
+        meetings: meetingsRes.status,
+        targets: targetsRes.status
+      });
+      
+      const rmsData = await rmsRes.json();
+      const cpsData = await cpsRes.json();
+      const salesData = await salesRes.json();
+      const meetingsData = await meetingsRes.json();
+      const targetsData = await targetsRes.json();
+      
+      console.log('Data received:', {
+        rms: rmsData?.length,
+        cps: cpsData?.length,
+        sales: salesData?.length,
+        meetings: meetingsData?.length,
+        targets: targetsData?.length
+      });
+      
+      setRms(rmsData || []);
+      setCps(cpsData || []);
+      setSales(salesData || []);
+      setMeetings(meetingsData || []);
+      setTargets(targetsData || []);
+      
     } catch (err) {
-      setError(`Fetch Error: ${err.message}`);
+      console.error('Fetch error:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -75,66 +90,60 @@ function AdminDashboard() {
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
-        <div style={styles.loading}>Loading...</div>
+        <div style={styles.loading}>Loading admin dashboard...</div>
       </div>
     );
   }
 
-  if (error || rawResponse) {
+  if (error) {
     return (
-      <div style={styles.debugContainer}>
-        <h1 style={styles.debugTitle}>🔍 API Debug Information</h1>
-        
-        <div style={styles.section}>
-          <h2>Request Details</h2>
-          <p><strong>URL:</strong> {rawResponse?.url}</p>
-          <p><strong>Status:</strong> {rawResponse?.status} {rawResponse?.statusText}</p>
-          <p><strong>Content-Type:</strong> {rawResponse?.contentType || 'not set'}</p>
-        </div>
-        
-        <div style={styles.section}>
-          <h2>Raw Response (first 500 characters)</h2>
-          <pre style={styles.pre}>
-            {rawResponse?.text || 'No response received'}
-          </pre>
-        </div>
-        
-        {error && (
-          <div style={styles.errorBox}>
-            <strong>Error:</strong> {error}
-          </div>
-        )}
-        
-        <div style={styles.actions}>
-          <button onClick={fetchWithDebug} style={styles.button}>🔄 Retry</button>
+      <div style={styles.errorContainer}>
+        <h2>❌ Connection Error</h2>
+        <p style={styles.errorMessage}>{error}</p>
+        <p style={styles.errorHint}>Attempting to connect to: {apiUrl}</p>
+        <div style={styles.buttonGroup}>
+          <button onClick={fetchAllData} style={styles.retryBtn}>🔄 Retry</button>
           <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
-          <a 
-            href={`${baseUrl}/rms`} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            style={styles.link}
-          >
-            Open in Browser
-          </a>
         </div>
-        
-        <p style={styles.note}>
-          If you see HTML tags (&lt;!DOCTYPE&gt;, &lt;html&gt;, etc.) in the raw response, 
-          your Render backend might be returning an error page instead of JSON.
-        </p>
+        <div style={styles.testLinks}>
+          <h3>Test these URLs directly:</h3>
+          <a href={`${apiUrl}/health`} target="_blank" rel="noopener noreferrer">Health Check</a><br/>
+          <a href={`${apiUrl}/rms`} target="_blank" rel="noopener noreferrer">RMs Data</a><br/>
+          <a href={`${apiUrl}/channel_partners`} target="_blank" rel="noopener noreferrer">CPs Data</a>
+        </div>
       </div>
     );
   }
 
-  // Success state - show data
   return (
     <div style={styles.container}>
-      <h1>✅ Admin Dashboard - Data Loaded Successfully</h1>
-      <p>RMs: {rms.length}</p>
-      <p>CPs: {cps.length}</p>
-      <p>Sales: {sales.length}</p>
-      <p>Meetings: {meetings.length}</p>
-      <p>Targets: {targets.length}</p>
+      <div style={styles.header}>
+        <h1>👑 Admin Dashboard</h1>
+        <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
+      </div>
+      
+      <div style={styles.statsGrid}>
+        <div style={styles.statCard}>
+          <h3>Total RMs</h3>
+          <p style={styles.statNumber}>{rms.length}</p>
+        </div>
+        <div style={styles.statCard}>
+          <h3>Total CPs</h3>
+          <p style={styles.statNumber}>{cps.length}</p>
+        </div>
+        <div style={styles.statCard}>
+          <h3>Total Sales</h3>
+          <p style={styles.statNumber}>{sales.length}</p>
+        </div>
+        <div style={styles.statCard}>
+          <h3>Total Meetings</h3>
+          <p style={styles.statNumber}>{meetings.length}</p>
+        </div>
+      </div>
+      
+      <pre style={styles.debug}>
+        {JSON.stringify({ rms: rms.length, cps: cps.length, sales: sales.length, meetings: meetings.length }, null, 2)}
+      </pre>
     </div>
   );
 }
@@ -155,47 +164,31 @@ const styles = {
     fontSize: '18px',
     color: '#666'
   },
-  debugContainer: {
-    maxWidth: '800px',
+  errorContainer: {
+    padding: '40px',
+    maxWidth: '600px',
     margin: '40px auto',
-    padding: '30px',
-    background: 'white',
-    borderRadius: '10px',
-    boxShadow: '0 2px 20px rgba(0,0,0,0.1)'
+    background: '#fff',
+    borderRadius: '8px',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+    textAlign: 'center'
   },
-  debugTitle: {
-    color: '#e67e22',
-    marginBottom: '30px'
+  errorMessage: {
+    color: '#dc3545',
+    margin: '20px 0'
   },
-  section: {
-    marginBottom: '30px',
-    padding: '20px',
-    background: '#f8f9fa',
-    borderRadius: '8px'
-  },
-  pre: {
-    background: '#2d2d2d',
-    color: '#f8f8f2',
-    padding: '15px',
-    borderRadius: '5px',
-    overflow: 'auto',
-    fontSize: '12px',
-    fontFamily: 'monospace',
-    maxHeight: '300px'
-  },
-  errorBox: {
-    background: '#fee',
-    padding: '15px',
-    borderRadius: '5px',
-    color: '#c00',
+  errorHint: {
+    color: '#666',
+    fontSize: '14px',
     marginBottom: '20px'
   },
-  actions: {
+  buttonGroup: {
     display: 'flex',
     gap: '10px',
-    marginBottom: '20px'
+    justifyContent: 'center',
+    marginBottom: '30px'
   },
-  button: {
+  retryBtn: {
     padding: '10px 20px',
     background: '#3498db',
     color: 'white',
@@ -211,21 +204,42 @@ const styles = {
     borderRadius: '5px',
     cursor: 'pointer'
   },
-  link: {
-    padding: '10px 20px',
-    background: '#28a745',
-    color: 'white',
-    textDecoration: 'none',
-    borderRadius: '5px',
-    display: 'inline-block'
-  },
-  note: {
-    fontSize: '14px',
-    color: '#666',
-    marginTop: '20px',
-    padding: '10px',
-    background: '#fff3cd',
+  testLinks: {
+    textAlign: 'left',
+    background: '#f8f9fa',
+    padding: '15px',
     borderRadius: '5px'
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '30px'
+  },
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: '20px',
+    marginBottom: '30px'
+  },
+  statCard: {
+    background: 'white',
+    padding: '20px',
+    borderRadius: '8px',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+    textAlign: 'center'
+  },
+  statNumber: {
+    fontSize: '32px',
+    fontWeight: 'bold',
+    color: '#3498db',
+    margin: '10px 0 0 0'
+  },
+  debug: {
+    background: '#f5f5f5',
+    padding: '15px',
+    borderRadius: '5px',
+    overflow: 'auto'
   }
 };
 
