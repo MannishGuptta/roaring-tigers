@@ -9,6 +9,7 @@ function AdminDashboard() {
   const [meetings, setMeetings] = useState([]);
   const [targets, setTargets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
   // Modal states
   const [showRMModal, setShowRMModal] = useState(false);
@@ -60,11 +61,13 @@ function AdminDashboard() {
 
   const loadAllData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const baseUrl = 'https://roaring-tigers-api.onrender.com';
       
       console.log('Fetching data from:', baseUrl);
       
+      // Fetch all data in parallel
       const [rmsRes, cpsRes, salesRes, meetingsRes, targetsRes] = await Promise.all([
         fetch(`${baseUrl}/rms`),
         fetch(`${baseUrl}/channel_partners`),
@@ -73,13 +76,19 @@ function AdminDashboard() {
         fetch(`${baseUrl}/targets`)
       ]);
       
-      const rmsData = await rmsRes.json() || [];
-      const cpsData = await cpsRes.json() || [];
-      const salesData = await salesRes.json() || [];
-      const meetingsData = await meetingsRes.json() || [];
-      const targetsData = await targetsRes.json() || [];
+      // Check if any request failed
+      if (!rmsRes.ok || !cpsRes.ok || !salesRes.ok || !meetingsRes.ok || !targetsRes.ok) {
+        throw new Error('Failed to fetch data from server');
+      }
       
-      console.log('Data loaded:', {
+      // Parse all responses
+      const rmsData = await rmsRes.json();
+      const cpsData = await cpsRes.json();
+      const salesData = await salesRes.json();
+      const meetingsData = await meetingsRes.json();
+      const targetsData = await targetsRes.json();
+      
+      console.log('Data loaded successfully:', {
         rms: rmsData.length,
         cps: cpsData.length,
         sales: salesData.length,
@@ -87,14 +96,20 @@ function AdminDashboard() {
         targets: targetsData.length
       });
       
-      setRms(rmsData);
-      setCps(cpsData);
-      setSales(salesData);
-      setMeetings(meetingsData);
-      setTargets(targetsData);
+      // Log first few items to verify structure
+      if (rmsData.length > 0) console.log('Sample RM:', rmsData[0]);
+      if (cpsData.length > 0) console.log('Sample CP:', cpsData[0]);
+      if (salesData.length > 0) console.log('Sample Sale:', salesData[0]);
+      
+      setRms(Array.isArray(rmsData) ? rmsData : []);
+      setCps(Array.isArray(cpsData) ? cpsData : []);
+      setSales(Array.isArray(salesData) ? salesData : []);
+      setMeetings(Array.isArray(meetingsData) ? meetingsData : []);
+      setTargets(Array.isArray(targetsData) ? targetsData : []);
       
     } catch (err) {
       console.error('Error loading data:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -106,12 +121,18 @@ function AdminDashboard() {
     
     try {
       const baseUrl = 'https://roaring-tigers-api.onrender.com';
-      await fetch(`${baseUrl}/${type}/${id}`, {
+      const response = await fetch(`${baseUrl}/${type}/${id}`, {
         method: 'DELETE'
       });
-      loadAllData();
+      
+      if (response.ok) {
+        loadAllData();
+      } else {
+        alert('Failed to delete');
+      }
     } catch (err) {
       console.error('Error deleting:', err);
+      alert('Error deleting item');
     }
   };
 
@@ -156,9 +177,12 @@ function AdminDashboard() {
       if (response.ok) {
         setShowRMModal(false);
         loadAllData();
+      } else {
+        alert('Failed to save RM');
       }
     } catch (err) {
       console.error('Error saving RM:', err);
+      alert('Error saving RM');
     }
   };
 
@@ -213,9 +237,12 @@ function AdminDashboard() {
       if (response.ok) {
         setShowCPModal(false);
         loadAllData();
+      } else {
+        alert('Failed to save CP');
       }
     } catch (err) {
       console.error('Error saving CP:', err);
+      alert('Error saving CP');
     }
   };
 
@@ -238,23 +265,29 @@ function AdminDashboard() {
     try {
       const baseUrl = 'https://roaring-tigers-api.onrender.com';
       const targetData = {
-        ...targetForm,
+        rm_id: targetForm.rm_id,
+        period: targetForm.period,
         cp_onboarding_target: parseInt(targetForm.cp_onboarding_target) || 0,
         active_cp_target: parseInt(targetForm.active_cp_target) || 0,
         meetings_target: parseInt(targetForm.meetings_target) || 0,
         revenue_target: parseInt(targetForm.revenue_target) || 0
       };
       
-      await fetch(`${baseUrl}/targets`, {
+      const response = await fetch(`${baseUrl}/targets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(targetData)
       });
       
-      setShowTargetModal(false);
-      loadAllData();
+      if (response.ok) {
+        setShowTargetModal(false);
+        loadAllData();
+      } else {
+        alert('Failed to save target');
+      }
     } catch (err) {
       console.error('Error saving target:', err);
+      alert('Error saving target');
     }
   };
 
@@ -281,7 +314,7 @@ function AdminDashboard() {
 
   // Calculate stats
   const totalRevenue = sales.reduce((sum, s) => sum + (s.sale_amount || 0), 0);
-  const activeCPs = new Set(sales.map(s => s.cp_id)).size;
+  const activeCPs = new Set(sales.map(s => s.cp_id).filter(Boolean)).size;
 
   const today = new Date();
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -302,6 +335,15 @@ function AdminDashboard() {
     return (
       <div style={styles.loadingContainer}>
         <div style={styles.loading}>Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={styles.errorContainer}>
+        <div style={styles.error}>Error: {error}</div>
+        <button onClick={loadAllData} style={styles.retryBtn}>Retry</button>
       </div>
     );
   }
@@ -424,41 +466,45 @@ function AdminDashboard() {
         {activeTab === 'rms' && (
           <div>
             <div style={styles.tabHeader}>
-              <h2 style={styles.tabTitle}>Relationship Managers</h2>
+              <h2 style={styles.tabTitle}>Relationship Managers ({rms.length})</h2>
               <button onClick={handleAddRM} style={styles.addButton}>➕ Add RM</button>
             </div>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  <th>Email</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rms.map(rm => (
-                  <tr key={rm.id}>
-                    <td>{rm.id}</td>
-                    <td>{rm.name}</td>
-                    <td>{rm.phone}</td>
-                    <td>{rm.email}</td>
-                    <td>
-                      <span style={{...styles.badge, background: rm.status === 'active' ? '#d4edda' : '#f8d7da'}}>
-                        {rm.status}
-                      </span>
-                    </td>
-                    <td>
-                      <button onClick={() => handleEditRM(rm)} style={styles.editBtn}>✏️</button>
-                      <button onClick={() => handleAddTarget(rm)} style={styles.targetBtn}>🎯</button>
-                      <button onClick={() => handleDelete('rms', rm.id)} style={styles.deleteBtn}>🗑️</button>
-                    </td>
+            {rms.length === 0 ? (
+              <p style={styles.noData}>No RMs found. Click "Add RM" to create one.</p>
+            ) : (
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rms.map(rm => (
+                    <tr key={rm.id}>
+                      <td>{rm.id}</td>
+                      <td>{rm.name}</td>
+                      <td>{rm.phone}</td>
+                      <td>{rm.email}</td>
+                      <td>
+                        <span style={{...styles.badge, background: rm.status === 'active' ? '#d4edda' : '#f8d7da'}}>
+                          {rm.status}
+                        </span>
+                      </td>
+                      <td>
+                        <button onClick={() => handleEditRM(rm)} style={styles.editBtn} title="Edit">✏️</button>
+                        <button onClick={() => handleAddTarget(rm)} style={styles.targetBtn} title="Set Target">🎯</button>
+                        <button onClick={() => handleDelete('rms', rm.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
 
@@ -466,159 +512,175 @@ function AdminDashboard() {
         {activeTab === 'cps' && (
           <div>
             <div style={styles.tabHeader}>
-              <h2 style={styles.tabTitle}>Channel Partners</h2>
+              <h2 style={styles.tabTitle}>Channel Partners ({cps.length})</h2>
               <button onClick={handleAddCP} style={styles.addButton}>➕ Add CP</button>
             </div>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  <th>RM</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cps.map(cp => {
-                  const rm = rms.find(r => String(r.id) === String(cp.rm_id));
-                  return (
-                    <tr key={cp.id}>
-                      <td>{cp.id}</td>
-                      <td>{cp.cp_name}</td>
-                      <td>{cp.phone}</td>
-                      <td>{rm?.name || cp.rm_id}</td>
-                      <td>{cp.cp_type}</td>
-                      <td>
-                        <span style={{...styles.badge, background: cp.status === 'active' ? '#d4edda' : '#f8d7da'}}>
-                          {cp.status}
-                        </span>
-                      </td>
-                      <td>
-                        <button onClick={() => handleEditCP(cp)} style={styles.editBtn}>✏️</button>
-                        <button onClick={() => handleDelete('channel_partners', cp.id)} style={styles.deleteBtn}>🗑️</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            {cps.length === 0 ? (
+              <p style={styles.noData}>No CPs found. Click "Add CP" to create one.</p>
+            ) : (
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>RM</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cps.map(cp => {
+                    const rm = rms.find(r => String(r.id) === String(cp.rm_id));
+                    return (
+                      <tr key={cp.id}>
+                        <td>{cp.id}</td>
+                        <td>{cp.cp_name}</td>
+                        <td>{cp.phone}</td>
+                        <td>{rm?.name || cp.rm_id}</td>
+                        <td>{cp.cp_type}</td>
+                        <td>
+                          <span style={{...styles.badge, background: cp.status === 'active' ? '#d4edda' : '#f8d7da'}}>
+                            {cp.status}
+                          </span>
+                        </td>
+                        <td>
+                          <button onClick={() => handleEditCP(cp)} style={styles.editBtn} title="Edit">✏️</button>
+                          <button onClick={() => handleDelete('channel_partners', cp.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
 
         {/* Sales Tab */}
         {activeTab === 'sales' && (
           <div>
-            <h2 style={styles.tabTitle}>Sales Records</h2>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>RM</th>
-                  <th>CP</th>
-                  <th>Applicant</th>
-                  <th>Amount</th>
-                  <th>Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sales.map(sale => {
-                  const rm = rms.find(r => String(r.id) === String(sale.rm_id));
-                  const cp = cps.find(c => String(c.id) === String(sale.cp_id));
-                  return (
-                    <tr key={sale.id}>
-                      <td>{sale.id}</td>
-                      <td>{rm?.name || sale.rm_id}</td>
-                      <td>{cp?.cp_name || sale.cp_id}</td>
-                      <td>{sale.applicant_name}</td>
-                      <td>{formatCurrency(sale.sale_amount)}</td>
-                      <td>{sale.sale_date}</td>
-                      <td>
-                        <button onClick={() => handleDelete('sales', sale.id)} style={styles.deleteBtn}>🗑️</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <h2 style={styles.tabTitle}>Sales Records ({sales.length})</h2>
+            {sales.length === 0 ? (
+              <p style={styles.noData}>No sales found.</p>
+            ) : (
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>RM</th>
+                    <th>CP</th>
+                    <th>Applicant</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sales.map(sale => {
+                    const rm = rms.find(r => String(r.id) === String(sale.rm_id));
+                    const cp = cps.find(c => String(c.id) === String(sale.cp_id));
+                    return (
+                      <tr key={sale.id}>
+                        <td>{sale.id}</td>
+                        <td>{rm?.name || sale.rm_id}</td>
+                        <td>{cp?.cp_name || sale.cp_id}</td>
+                        <td>{sale.applicant_name}</td>
+                        <td>{formatCurrency(sale.sale_amount)}</td>
+                        <td>{sale.sale_date}</td>
+                        <td>
+                          <button onClick={() => handleDelete('sales', sale.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
 
         {/* Meetings Tab */}
         {activeTab === 'meetings' && (
           <div>
-            <h2 style={styles.tabTitle}>Meeting Logs</h2>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>RM</th>
-                  <th>CP</th>
-                  <th>Date</th>
-                  <th>Outcome</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {meetings.map(meeting => {
-                  const rm = rms.find(r => String(r.id) === String(meeting.rm_id));
-                  const cp = cps.find(c => String(c.id) === String(meeting.cp_id));
-                  return (
-                    <tr key={meeting.id}>
-                      <td>{meeting.id}</td>
-                      <td>{rm?.name || meeting.rm_id}</td>
-                      <td>{cp?.cp_name || meeting.cp_id}</td>
-                      <td>{meeting.meeting_date}</td>
-                      <td>{meeting.outcome}</td>
-                      <td>
-                        <button onClick={() => handleDelete('meetings', meeting.id)} style={styles.deleteBtn}>🗑️</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <h2 style={styles.tabTitle}>Meeting Logs ({meetings.length})</h2>
+            {meetings.length === 0 ? (
+              <p style={styles.noData}>No meetings found.</p>
+            ) : (
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>RM</th>
+                    <th>CP</th>
+                    <th>Date</th>
+                    <th>Outcome</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {meetings.map(meeting => {
+                    const rm = rms.find(r => String(r.id) === String(meeting.rm_id));
+                    const cp = cps.find(c => String(c.id) === String(meeting.cp_id));
+                    return (
+                      <tr key={meeting.id}>
+                        <td>{meeting.id}</td>
+                        <td>{rm?.name || meeting.rm_id}</td>
+                        <td>{cp?.cp_name || meeting.cp_id}</td>
+                        <td>{new Date(meeting.meeting_date).toLocaleDateString()}</td>
+                        <td>{meeting.outcome}</td>
+                        <td>
+                          <button onClick={() => handleDelete('meetings', meeting.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
 
         {/* Targets Tab */}
         {activeTab === 'targets' && (
           <div>
-            <h2 style={styles.tabTitle}>Monthly Targets</h2>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>RM</th>
-                  <th>Period</th>
-                  <th>CP Target</th>
-                  <th>Active CP</th>
-                  <th>Meetings</th>
-                  <th>Revenue</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {targets.map(target => {
-                  const rm = rms.find(r => String(r.id) === String(target.rm_id));
-                  return (
-                    <tr key={target.id}>
-                      <td>{rm?.name || target.rm_id}</td>
-                      <td>{target.period}</td>
-                      <td>{target.cp_onboarding_target}</td>
-                      <td>{target.active_cp_target}</td>
-                      <td>{target.meetings_target}</td>
-                      <td>{formatCurrency(target.revenue_target)}</td>
-                      <td>
-                        <button onClick={() => handleDelete('targets', target.id)} style={styles.deleteBtn}>🗑️</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <h2 style={styles.tabTitle}>Monthly Targets ({targets.length})</h2>
+            {targets.length === 0 ? (
+              <p style={styles.noData}>No targets found. Click 🎯 next to an RM to set a target.</p>
+            ) : (
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th>RM</th>
+                    <th>Period</th>
+                    <th>CP Target</th>
+                    <th>Active CP</th>
+                    <th>Meetings</th>
+                    <th>Revenue</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {targets.map(target => {
+                    const rm = rms.find(r => String(r.id) === String(target.rm_id));
+                    return (
+                      <tr key={target.id}>
+                        <td>{rm?.name || target.rm_id}</td>
+                        <td>{target.period}</td>
+                        <td>{target.cp_onboarding_target}</td>
+                        <td>{target.active_cp_target}</td>
+                        <td>{target.meetings_target}</td>
+                        <td>{formatCurrency(target.revenue_target)}</td>
+                        <td>
+                          <button onClick={() => handleDelete('targets', target.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
       </div>
@@ -690,7 +752,7 @@ function AdminDashboard() {
               <input type="number" placeholder="CP Onboarding Target" value={targetForm.cp_onboarding_target} onChange={(e) => setTargetForm({...targetForm, cp_onboarding_target: e.target.value})} required style={styles.modalInput} />
               <input type="number" placeholder="Active CP Target" value={targetForm.active_cp_target} onChange={(e) => setTargetForm({...targetForm, active_cp_target: e.target.value})} required style={styles.modalInput} />
               <input type="number" placeholder="Meetings Target" value={targetForm.meetings_target} onChange={(e) => setTargetForm({...targetForm, meetings_target: e.target.value})} required style={styles.modalInput} />
-              <input type="number" placeholder="Revenue Target" value={targetForm.revenue_target} onChange={(e) => setTargetForm({...targetForm, revenue_target: e.target.value})} required style={styles.modalInput} />
+              <input type="number" placeholder="Revenue Target (₹)" value={targetForm.revenue_target} onChange={(e) => setTargetForm({...targetForm, revenue_target: e.target.value})} required style={styles.modalInput} />
               <div style={styles.modalActions}>
                 <button type="button" onClick={() => setShowTargetModal(false)} style={styles.modalCancel}>Cancel</button>
                 <button type="submit" style={styles.modalSave}>Save</button>
@@ -719,6 +781,26 @@ const styles = {
   loading: {
     fontSize: '18px',
     color: '#666'
+  },
+  errorContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    gap: '20px'
+  },
+  error: {
+    fontSize: '18px',
+    color: '#dc3545'
+  },
+  retryBtn: {
+    padding: '10px 20px',
+    background: '#3498db',
+    color: 'white',
+    border: 'none',
+    borderRadius: '5px',
+    cursor: 'pointer'
   },
   header: {
     display: 'flex',
@@ -855,6 +937,11 @@ const styles = {
     cursor: 'pointer',
     fontSize: '14px',
     fontWeight: 'bold'
+  },
+  noData: {
+    textAlign: 'center',
+    color: '#999',
+    padding: '40px'
   },
   table: {
     width: '100%',
