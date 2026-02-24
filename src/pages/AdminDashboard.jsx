@@ -9,6 +9,7 @@ function AdminDashboard() {
   const [targets, setTargets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [rawResponse, setRawResponse] = useState(null);
   
   const navigate = useNavigate();
   const baseUrl = 'https://roaring-tigers-api.onrender.com';
@@ -19,57 +20,48 @@ function AdminDashboard() {
       navigate('/admin');
       return;
     }
-    fetchAllData();
+    fetchWithDebug();
   }, [navigate]);
 
-  const fetchAllData = async () => {
+  const fetchWithDebug = async () => {
     setLoading(true);
-    setError(null);
-    
     try {
-      console.log('Fetching from:', baseUrl);
+      // First, get the raw response as text
+      const response = await fetch(`${baseUrl}/rms`);
+      const text = await response.text();
       
-      // Fetch all data in parallel
-      const [rmsRes, cpsRes, salesRes, meetingsRes, targetsRes] = await Promise.all([
-        fetch(`${baseUrl}/rms`),
-        fetch(`${baseUrl}/channel_partners`),
-        fetch(`${baseUrl}/sales`),
-        fetch(`${baseUrl}/meetings`),
-        fetch(`${baseUrl}/targets`)
-      ]);
-      
-      console.log('Response statuses:', {
-        rms: rmsRes.status,
-        cps: cpsRes.status,
-        sales: salesRes.status,
-        meetings: meetingsRes.status,
-        targets: targetsRes.status
+      setRawResponse({
+        url: `${baseUrl}/rms`,
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type'),
+        text: text.substring(0, 500) // First 500 chars
       });
       
-      // Parse JSON
-      const rmsData = await rmsRes.json();
-      const cpsData = await cpsRes.json();
-      const salesData = await salesRes.json();
-      const meetingsData = await meetingsRes.json();
-      const targetsData = await targetsRes.json();
-      
-      console.log('Data received:', {
-        rms: rmsData?.length,
-        cps: cpsData?.length,
-        sales: salesData?.length,
-        meetings: meetingsData?.length,
-        targets: targetsData?.length
-      });
-      
-      setRms(Array.isArray(rmsData) ? rmsData : []);
-      setCps(Array.isArray(cpsData) ? cpsData : []);
-      setSales(Array.isArray(salesData) ? salesData : []);
-      setMeetings(Array.isArray(meetingsData) ? meetingsData : []);
-      setTargets(Array.isArray(targetsData) ? targetsData : []);
+      // Try to parse it
+      try {
+        const data = JSON.parse(text);
+        setRms(Array.isArray(data) ? data : []);
+        
+        // If successful, fetch other data
+        const [cpsRes, salesRes, meetingsRes, targetsRes] = await Promise.all([
+          fetch(`${baseUrl}/channel_partners`).then(r => r.json()),
+          fetch(`${baseUrl}/sales`).then(r => r.json()),
+          fetch(`${baseUrl}/meetings`).then(r => r.json()),
+          fetch(`${baseUrl}/targets`).then(r => r.json())
+        ]);
+        
+        setCps(cpsRes);
+        setSales(salesRes);
+        setMeetings(meetingsRes);
+        setTargets(targetsRes);
+        
+      } catch (e) {
+        setError(`JSON Parse Error: ${e.message}`);
+      }
       
     } catch (err) {
-      console.error('Fetch error:', err);
-      setError(err.message);
+      setError(`Fetch Error: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -80,118 +72,69 @@ function AdminDashboard() {
     navigate('/admin');
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0
-    }).format(amount || 0);
-  };
-
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
-        <div style={styles.loading}>Loading dashboard...</div>
+        <div style={styles.loading}>Loading...</div>
       </div>
     );
   }
 
-  if (error) {
+  if (error || rawResponse) {
     return (
-      <div style={styles.errorContainer}>
-        <h2>Error Loading Data</h2>
-        <p style={styles.error}>{error}</p>
-        <button onClick={fetchAllData} style={styles.retryBtn}>Retry</button>
-        <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
+      <div style={styles.debugContainer}>
+        <h1 style={styles.debugTitle}>🔍 API Debug Information</h1>
+        
+        <div style={styles.section}>
+          <h2>Request Details</h2>
+          <p><strong>URL:</strong> {rawResponse?.url}</p>
+          <p><strong>Status:</strong> {rawResponse?.status} {rawResponse?.statusText}</p>
+          <p><strong>Content-Type:</strong> {rawResponse?.contentType || 'not set'}</p>
+        </div>
+        
+        <div style={styles.section}>
+          <h2>Raw Response (first 500 characters)</h2>
+          <pre style={styles.pre}>
+            {rawResponse?.text || 'No response received'}
+          </pre>
+        </div>
+        
+        {error && (
+          <div style={styles.errorBox}>
+            <strong>Error:</strong> {error}
+          </div>
+        )}
+        
+        <div style={styles.actions}>
+          <button onClick={fetchWithDebug} style={styles.button}>🔄 Retry</button>
+          <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
+          <a 
+            href={`${baseUrl}/rms`} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            style={styles.link}
+          >
+            Open in Browser
+          </a>
+        </div>
+        
+        <p style={styles.note}>
+          If you see HTML tags (&lt;!DOCTYPE&gt;, &lt;html&gt;, etc.) in the raw response, 
+          your Render backend might be returning an error page instead of JSON.
+        </p>
       </div>
     );
   }
 
+  // Success state - show data
   return (
     <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <h1>👑 Admin Dashboard</h1>
-        <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
-      </div>
-
-      {/* Stats Cards */}
-      <div style={styles.statsGrid}>
-        <div style={styles.statCard}>
-          <h3>Total RMs</h3>
-          <p style={styles.statNumber}>{rms.length}</p>
-        </div>
-        <div style={styles.statCard}>
-          <h3>Total CPs</h3>
-          <p style={styles.statNumber}>{cps.length}</p>
-        </div>
-        <div style={styles.statCard}>
-          <h3>Total Sales</h3>
-          <p style={styles.statNumber}>{sales.length}</p>
-        </div>
-        <div style={styles.statCard}>
-          <h3>Total Meetings</h3>
-          <p style={styles.statNumber}>{meetings.length}</p>
-        </div>
-        <div style={styles.statCard}>
-          <h3>Total Revenue</h3>
-          <p style={styles.statNumber}>{formatCurrency(sales.reduce((sum, s) => sum + (s.sale_amount || 0), 0))}</p>
-        </div>
-      </div>
-
-      {/* RMs Table */}
-      <div style={styles.section}>
-        <h2>Relationship Managers ({rms.length})</h2>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Phone</th>
-              <th>Email</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rms.map(rm => (
-              <tr key={rm.id}>
-                <td>{rm.id}</td>
-                <td>{rm.name}</td>
-                <td>{rm.phone}</td>
-                <td>{rm.email}</td>
-                <td>{rm.status}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* CPs Table */}
-      <div style={styles.section}>
-        <h2>Channel Partners ({cps.length})</h2>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Phone</th>
-              <th>RM ID</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cps.map(cp => (
-              <tr key={cp.id}>
-                <td>{cp.id}</td>
-                <td>{cp.cp_name}</td>
-                <td>{cp.phone}</td>
-                <td>{cp.rm_id}</td>
-                <td>{cp.status}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <h1>✅ Admin Dashboard - Data Loaded Successfully</h1>
+      <p>RMs: {rms.length}</p>
+      <p>CPs: {cps.length}</p>
+      <p>Sales: {sales.length}</p>
+      <p>Meetings: {meetings.length}</p>
+      <p>Targets: {targets.length}</p>
     </div>
   );
 }
@@ -200,8 +143,7 @@ const styles = {
   container: {
     padding: '20px',
     maxWidth: '1200px',
-    margin: '0 auto',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    margin: '0 auto'
   },
   loadingContainer: {
     display: 'flex',
@@ -213,28 +155,53 @@ const styles = {
     fontSize: '18px',
     color: '#666'
   },
-  errorContainer: {
-    textAlign: 'center',
-    padding: '40px'
+  debugContainer: {
+    maxWidth: '800px',
+    margin: '40px auto',
+    padding: '30px',
+    background: 'white',
+    borderRadius: '10px',
+    boxShadow: '0 2px 20px rgba(0,0,0,0.1)'
   },
-  error: {
-    color: 'red',
-    margin: '20px 0'
+  debugTitle: {
+    color: '#e67e22',
+    marginBottom: '30px'
   },
-  retryBtn: {
+  section: {
+    marginBottom: '30px',
+    padding: '20px',
+    background: '#f8f9fa',
+    borderRadius: '8px'
+  },
+  pre: {
+    background: '#2d2d2d',
+    color: '#f8f8f2',
+    padding: '15px',
+    borderRadius: '5px',
+    overflow: 'auto',
+    fontSize: '12px',
+    fontFamily: 'monospace',
+    maxHeight: '300px'
+  },
+  errorBox: {
+    background: '#fee',
+    padding: '15px',
+    borderRadius: '5px',
+    color: '#c00',
+    marginBottom: '20px'
+  },
+  actions: {
+    display: 'flex',
+    gap: '10px',
+    marginBottom: '20px'
+  },
+  button: {
     padding: '10px 20px',
     background: '#3498db',
     color: 'white',
     border: 'none',
     borderRadius: '5px',
-    cursor: 'pointer',
-    marginRight: '10px'
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '30px'
+    cursor: 'pointer'
   },
   logoutBtn: {
     padding: '10px 20px',
@@ -244,36 +211,21 @@ const styles = {
     borderRadius: '5px',
     cursor: 'pointer'
   },
-  statsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '20px',
-    marginBottom: '30px'
+  link: {
+    padding: '10px 20px',
+    background: '#28a745',
+    color: 'white',
+    textDecoration: 'none',
+    borderRadius: '5px',
+    display: 'inline-block'
   },
-  statCard: {
-    background: 'white',
-    padding: '20px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-    textAlign: 'center'
-  },
-  statNumber: {
-    fontSize: '32px',
-    fontWeight: 'bold',
-    color: '#3498db',
-    margin: '10px 0 0 0'
-  },
-  section: {
-    background: 'white',
-    padding: '20px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-    marginBottom: '20px'
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    marginTop: '15px'
+  note: {
+    fontSize: '14px',
+    color: '#666',
+    marginTop: '20px',
+    padding: '10px',
+    background: '#fff3cd',
+    borderRadius: '5px'
   }
 };
 
