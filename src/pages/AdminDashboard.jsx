@@ -9,9 +9,11 @@ function AdminDashboard() {
   const [targets, setTargets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [apiUrl, setApiUrl] = useState('https://roaring-tigers-backend.onrender.com');
+  const [retryCount, setRetryCount] = useState(0);
   
   const navigate = useNavigate();
+  // Make sure this URL is exactly correct
+  const API_URL = 'https://roaring-tigers-backend.onrender.com';
 
   useEffect(() => {
     const admin = sessionStorage.getItem('admin');
@@ -20,53 +22,50 @@ function AdminDashboard() {
       return;
     }
     fetchAllData();
-  }, [navigate]);
+  }, [navigate, retryCount]);
 
   const fetchAllData = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      console.log('Fetching from:', apiUrl);
+      console.log('Fetching from:', API_URL);
       
-      // Test health endpoint first
-      const healthRes = await fetch(`${apiUrl}/health`);
-      console.log('Health check status:', healthRes.status);
+      // Test health endpoint first with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const healthRes = await fetch(`${API_URL}/health`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
       
       if (!healthRes.ok) {
         throw new Error(`Health check failed: ${healthRes.status}`);
       }
       
-      // Fetch all data
-      const [rmsRes, cpsRes, salesRes, meetingsRes, targetsRes] = await Promise.all([
-        fetch(`${apiUrl}/rms`),
-        fetch(`${apiUrl}/channel_partners`),
-        fetch(`${apiUrl}/sales`),
-        fetch(`${apiUrl}/meetings`),
-        fetch(`${apiUrl}/targets`)
+      // Fetch all data with individual error handling
+      const fetchWithTimeout = async (url) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        try {
+          const res = await fetch(url, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (!res.ok) return [];
+          return await res.json();
+        } catch (err) {
+          console.warn(`Failed to fetch ${url}:`, err);
+          return [];
+        }
+      };
+
+      const [rmsData, cpsData, salesData, meetingsData, targetsData] = await Promise.all([
+        fetchWithTimeout(`${API_URL}/rms`),
+        fetchWithTimeout(`${API_URL}/channel_partners`),
+        fetchWithTimeout(`${API_URL}/sales`),
+        fetchWithTimeout(`${API_URL}/meetings`),
+        fetchWithTimeout(`${API_URL}/targets`)
       ]);
-      
-      console.log('Response statuses:', {
-        rms: rmsRes.status,
-        cps: cpsRes.status,
-        sales: salesRes.status,
-        meetings: meetingsRes.status,
-        targets: targetsRes.status
-      });
-      
-      const rmsData = await rmsRes.json();
-      const cpsData = await cpsRes.json();
-      const salesData = await salesRes.json();
-      const meetingsData = await meetingsRes.json();
-      const targetsData = await targetsRes.json();
-      
-      console.log('Data received:', {
-        rms: rmsData?.length,
-        cps: cpsData?.length,
-        sales: salesData?.length,
-        meetings: meetingsData?.length,
-        targets: targetsData?.length
-      });
       
       setRms(rmsData || []);
       setCps(cpsData || []);
@@ -87,6 +86,10 @@ function AdminDashboard() {
     navigate('/admin');
   };
 
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1);
+  };
+
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
@@ -100,16 +103,17 @@ function AdminDashboard() {
       <div style={styles.errorContainer}>
         <h2>❌ Connection Error</h2>
         <p style={styles.errorMessage}>{error}</p>
-        <p style={styles.errorHint}>Attempting to connect to: {apiUrl}</p>
+        <p style={styles.errorHint}>Attempting to connect to: {API_URL}</p>
+        <p style={styles.errorHint}>Make sure your backend is running at: {API_URL}/health</p>
         <div style={styles.buttonGroup}>
-          <button onClick={fetchAllData} style={styles.retryBtn}>🔄 Retry</button>
+          <button onClick={handleRetry} style={styles.retryBtn}>🔄 Retry</button>
           <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
         </div>
         <div style={styles.testLinks}>
           <h3>Test these URLs directly:</h3>
-          <a href={`${apiUrl}/health`} target="_blank" rel="noopener noreferrer">Health Check</a><br/>
-          <a href={`${apiUrl}/rms`} target="_blank" rel="noopener noreferrer">RMs Data</a><br/>
-          <a href={`${apiUrl}/channel_partners`} target="_blank" rel="noopener noreferrer">CPs Data</a>
+          <a href={`${API_URL}/health`} target="_blank" rel="noopener noreferrer">Health Check</a><br/>
+          <a href={`${API_URL}/rms`} target="_blank" rel="noopener noreferrer">RMs Data</a><br/>
+          <a href={`${API_URL}/channel_partners`} target="_blank" rel="noopener noreferrer">CPs Data</a>
         </div>
       </div>
     );
@@ -142,7 +146,14 @@ function AdminDashboard() {
       </div>
       
       <pre style={styles.debug}>
-        {JSON.stringify({ rms: rms.length, cps: cps.length, sales: sales.length, meetings: meetings.length }, null, 2)}
+        {JSON.stringify({ 
+          apiUrl: API_URL,
+          rms: rms.length, 
+          cps: cps.length, 
+          sales: sales.length, 
+          meetings: meetings.length,
+          targets: targets.length 
+        }, null, 2)}
       </pre>
     </div>
   );
@@ -180,7 +191,7 @@ const styles = {
   errorHint: {
     color: '#666',
     fontSize: '14px',
-    marginBottom: '20px'
+    marginBottom: '10px'
   },
   buttonGroup: {
     display: 'flex',
