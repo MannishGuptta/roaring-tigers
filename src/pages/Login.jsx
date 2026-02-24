@@ -14,53 +14,42 @@ function Login() {
     setError('');
 
     try {
-      console.log('Fetching RMs from backend...');
-      const response = await fetch('https://roaring-tigers-backend.onrender.com/rms');
+      console.log('1. Attempting login with:', { phone, password });
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const response = await fetch('https://roaring-tigers-backend.onrender.com/rms');
+      console.log('2. Response status:', response.status);
       
       const rms = await response.json();
-      console.log('RMs received:', rms);
+      console.log('3. Raw RM data:', rms);
+      console.log('4. Number of RMs:', rms.length);
+      console.log('5. First RM sample:', rms[0]);
       
-      // Debug: Log what we're comparing
-      console.log('Looking for phone:', phone, 'password:', password);
+      // Check each field carefully
+      const rm = rms.find(r => {
+        console.log('Comparing:', {
+          rmPhone: r.phone,
+          inputPhone: phone,
+          phoneMatch: String(r.phone) === String(phone),
+          rmPassword: r.password,
+          inputPassword: password,
+          passwordMatch: String(r.password) === String(password)
+        });
+        return String(r.phone) === String(phone) && String(r.password) === String(password);
+      });
       
-      // Find matching RM - ensure we're comparing strings
-      const rm = rms.find(r => 
-        String(r.phone) === String(phone) && 
-        String(r.password) === String(password)
-      );
-      
-      console.log('Found RM:', rm);
+      console.log('6. Found RM:', rm);
       
       if (rm) {
-        // Store RM in session
+        console.log('7. Login successful for:', rm.name);
         sessionStorage.setItem('rm', JSON.stringify(rm));
-        
-        // Mark attendance
-        try {
-          await fetch('https://roaring-tigers-backend.onrender.com/attendance', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              rm_id: rm.id,
-              date: new Date().toISOString().split('T')[0],
-              login_time: new Date().toISOString()
-            })
-          });
-        } catch (attErr) {
-          console.log('Attendance marking failed but continuing:', attErr);
-        }
-        
         navigate('/dashboard');
       } else {
+        console.log('7. No matching RM found');
         setError('Invalid phone or password');
       }
     } catch (err) {
-      console.error('Login error:', err);
-      setError('Connection error. Please try again.');
+      console.error('8. Login error:', err);
+      setError('Connection error: ' + err.message);
     } finally {
       setLoading(false);
     }
