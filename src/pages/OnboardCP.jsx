@@ -83,7 +83,7 @@ function OnboardCP() {
 
       console.log('Submitting CP data:', cpData);
 
-      const response = await fetch('http://localhost:3002/channel_partners', {
+      const response = await fetch('https://roaring-tigers-api.onrender.com/channel_partners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cpData)

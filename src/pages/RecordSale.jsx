@@ -104,7 +104,7 @@ function RecordSale() {
 
   const fetchCPs = async (rmId) => {
     try {
-      const response = await fetch('http://localhost:3002/channel_partners');
+      const response = await fetch('https://roaring-tigers-api.onrender.com/channel_partners');
       const allCPs = await response.json();
       const rmCPs = allCPs.filter(cp => String(cp.rm_id) === String(rmId));
       setCps(rmCPs);
@@ -158,7 +158,7 @@ function RecordSale() {
 
       console.log('Submitting sale:', saleData);
 
-      const response = await fetch('http://localhost:3002/sales', {
+      const response = await fetch('https://roaring-tigers-api.onrender.com/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(saleData)

@@ -17,7 +17,7 @@ function Login() {
 
     try {
       // First check if JSON Server is reachable
-      const response = await fetch('http://localhost:3002/rms');
+      const response = await fetch('https://roaring-tigers-api.onrender.com/rms');
       console.log('Response status:', response.status);
       
       if (!response.ok) {
@@ -41,7 +41,7 @@ function Login() {
         
         // Mark attendance
         try {
-          await fetch('http://localhost:3002/attendance', {
+          await fetch('https://roaring-tigers-api.onrender.com/attendance', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

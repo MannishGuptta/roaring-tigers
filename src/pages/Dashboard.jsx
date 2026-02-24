@@ -38,7 +38,7 @@ function Dashboard() {
 
   const loadTargets = async (rmId) => {
     try {
-      const response = await fetch('http://localhost:3002/targets');
+      const response = await fetch('https://roaring-tigers-api.onrender.com/targets');
       const allTargets = await response.json();
       const currentPeriod = getCurrentPeriod();
       const rmTarget = allTargets.find(t => 
@@ -91,12 +91,12 @@ function Dashboard() {
       const startDate = getDateRange(range);
       
       // Get all CPs
-      const cpRes = await fetch('http://localhost:3002/channel_partners');
+      const cpRes = await fetch('https://roaring-tigers-api.onrender.com/channel_partners');
       const allCPs = await cpRes.json();
       const rmCPs = allCPs.filter(cp => String(cp.rm_id) === String(rmId));
       
       // Calculate Active CPs (CPs with at least one sale)
-      const salesRes = await fetch('http://localhost:3002/sales');
+      const salesRes = await fetch('https://roaring-tigers-api.onrender.com/sales');
       const allSales = await salesRes.json();
       
       // Get unique CPs that have made sales
@@ -109,7 +109,7 @@ function Dashboard() {
       const activeCPs = rmCPs.filter(cp => cpWithSales.has(String(cp.id)));
       
       // Get meetings filtered by date
-      const meetingRes = await fetch('http://localhost:3002/meetings');
+      const meetingRes = await fetch('https://roaring-tigers-api.onrender.com/meetings');
       const allMeetings = await meetingRes.json();
       const rmMeetings = allMeetings.filter(m => 
         String(m.rm_id) === String(rmId) && 
