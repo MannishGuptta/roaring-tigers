@@ -1,4 +1,13 @@
-const jsonServer = require('json-server')
+// Try to load json-server, with error handling
+let jsonServer;
+try {
+  jsonServer = require('json-server');
+} catch (err) {
+  console.error('Failed to load json-server. Please run: npm install json-server');
+  console.error(err);
+  process.exit(1);
+}
+
 const server = jsonServer.create()
 const router = jsonServer.router('db.json')
 const middlewares = jsonServer.defaults()
@@ -22,10 +31,10 @@ server.get('/health', (req, res) => {
 server.listen(port, '0.0.0.0', () => {
   console.log(`JSON Server is running on port ${port}`)
   console.log(`Endpoints:`)
-  console.log(`  http://localhost:${port}/rms`)
-  console.log(`  http://localhost:${port}/channel_partners`)
-  console.log(`  http://localhost:${port}/meetings`)
-  console.log(`  http://localhost:${port}/sales`)
-  console.log(`  http://localhost:${port}/targets`)
-  console.log(`  http://localhost:${port}/health`)
+  console.log(`  http://0.0.0.0:${port}/rms`)
+  console.log(`  http://0.0.0.0:${port}/channel_partners`)
+  console.log(`  http://0.0.0.0:${port}/meetings`)
+  console.log(`  http://0.0.0.0:${port}/sales`)
+  console.log(`  http://0.0.0.0:${port}/targets`)
+  console.log(`  http://0.0.0.0:${port}/health`)
 })
