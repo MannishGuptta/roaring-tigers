@@ -1,0 +1,10 @@
+{
+  "buildCommand": "npm run build",
+  "buildOutputDirectory": "build",
+  "environment": {
+    "CI": "false",
+    "SKIP_PREFLIGHT_CHECK": "true",
+    "ESLINT_NO_DEV_ERRORS": "true",
+    "DISABLE_ESLINT_PLUGIN": "true"
+  }
+}
