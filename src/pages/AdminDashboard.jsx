@@ -981,8 +981,20 @@ handleRMSave = async (e) => {
           <div>
             <div style={styles.tabHeader}>
               <h2 style={styles.sectionTitle}>Relationship Managers</h2>
-              <button onClick={handleAddRM} style={styles.addButton}>➕ Add RM</button>
-            </div>
+<div style={{ display: 'flex', gap: '10px' }}>
+  <button 
+    onClick={loadAllData} 
+    style={{
+      ...styles.addButton,
+      background: '#3498db'
+    }}
+  >
+    🔄 Refresh
+  </button>
+  <button onClick={handleAddRM} style={styles.addButton}>
+    ➕ Add RM
+  </button>
+</div>            </div>
             <table style={styles.table}>
               <thead>
                 <tr>
