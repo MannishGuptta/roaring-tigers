@@ -1018,7 +1018,52 @@ handleRMSave = async (e) => {
                         {rm.status}
                       </span>
                     </td>
-                    <td>
+<td>
+  <button 
+    onClick={() => handleEditRM(rm)} 
+    style={{
+      padding: '5px 10px',
+      margin: '0 5px',
+      border: 'none',
+      borderRadius: '3px',
+      cursor: 'pointer',
+      background: '#ffc107',
+      color: '#333'
+    }}
+    title="Edit"
+  >
+    ✏️
+  </button>
+  <button 
+    onClick={() => handleAddTarget(rm)} 
+    style={{
+      padding: '5px 10px',
+      margin: '0 5px',
+      border: 'none',
+      borderRadius: '3px',
+      cursor: 'pointer',
+      background: '#17a2b8',
+      color: 'white'
+    }}
+    title="Set Target"
+  >
+    🎯
+  </button>
+  <button 
+    onClick={() => handleDelete('rms', rm.id)} 
+    style={{
+      padding: '5px 10px',
+      border: 'none',
+      borderRadius: '3px',
+      cursor: 'pointer',
+      background: '#dc3545',
+      color: 'white'
+    }}
+    title="Delete"
+  >
+    🗑️
+  </button>
+</td>                    <td>
                       <button onClick={() => handleEditRM(rm)} style={styles.editBtn} title="Edit">✏️</button>
                       <button onClick={() => handleAddTarget(rm)} style={styles.targetBtn} title="Set Target">🎯</button>
                       <button onClick={() => handleDelete('rms', rm.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
