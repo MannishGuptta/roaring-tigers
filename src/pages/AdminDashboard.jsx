@@ -1288,7 +1288,59 @@ handleRMSave = async (e) => {
         </div>
       )}
 
-      {showTargetModal && (
+      {{showTargetModal && (
+  <div style={styles.modal}>
+    <div style={styles.modalContent}>
+      <h3>Set Monthly Target</h3>
+      <form onSubmit={handleTargetSave}>
+        <input
+          type="text"
+          placeholder="Period (e.g., march-2026)"
+          value={targetForm.period}
+          onChange={(e) => setTargetForm({...targetForm, period: e.target.value})}
+          required
+          style={styles.modalInput}
+        />
+        <input
+          type="number"
+          placeholder="CP Onboarding Target"
+          value={targetForm.cp_onboarding_target}
+          onChange={(e) => setTargetForm({...targetForm, cp_onboarding_target: e.target.value})}
+          required
+          style={styles.modalInput}
+        />
+        <input
+          type="number"
+          placeholder="Active CP Target"
+          value={targetForm.active_cp_target}
+          onChange={(e) => setTargetForm({...targetForm, active_cp_target: e.target.value})}
+          required
+          style={styles.modalInput}
+        />
+        <input
+          type="number"
+          placeholder="Meetings Target"
+          value={targetForm.meetings_target}
+          onChange={(e) => setTargetForm({...targetForm, meetings_target: e.target.value})}
+          required
+          style={styles.modalInput}
+        />
+        <input
+          type="number"
+          placeholder="Revenue Target (₹)"
+          value={targetForm.revenue_target}
+          onChange={(e) => setTargetForm({...targetForm, revenue_target: e.target.value})}
+          required
+          style={styles.modalInput}
+        />
+        <div style={styles.modalActions}>
+          <button type="button" onClick={() => setShowTargetModal(false)} style={styles.modalCancel}>Cancel</button>
+          <button type="submit" style={styles.modalSave}>Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}showTargetModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
             <h3>Set Monthly Target</h3>
