@@ -434,7 +434,10 @@ function AdminDashboard() {
     console.error('Error saving RM:', err);
     alert('Error saving RM');
   }
-};if (response.ok) {
+const response = await fetch(...);
+if (response.ok) {
+   // something
+}
   setShowRMModal(false);
   loadAllData();  // ← Add this line
 } else {
