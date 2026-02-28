@@ -419,14 +419,14 @@ function AdminDashboard() {
     const method = editingItem ? 'PUT' : 'POST';
     
     const response = await fetch(url, {
-      method,
+      method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(rmForm)
     });
-    
+
     if (response.ok) {
       setShowRMModal(false);
-      // We need to add loadAllData() here
+      loadAllData(); // Refresh the data
     } else {
       alert('Failed to save RM');
     }
@@ -434,8 +434,7 @@ function AdminDashboard() {
     console.error('Error saving RM:', err);
     alert('Error saving RM');
   }
-const response = await fetch(...);
-if (response.ok) {
+};
    // something
 }
   setShowRMModal(false);
