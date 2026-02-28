@@ -412,7 +412,7 @@ function AdminDashboard() {
     setShowRMModal(true);
   };
 
-  const const handleRMSave = async (e) => {
+  const handleRMSave = async (e) => {
   e.preventDefault();
   try {
     const url = editingItem ? `${API_URL}/rms/${editingItem.id}` : `${API_URL}/rms`;
