@@ -1288,7 +1288,7 @@ handleRMSave = async (e) => {
         </div>
       )}
 
-      {{showTargetModal && (
+      {showTargetModal && (
   <div style={styles.modal}>
     <div style={styles.modalContent}>
       <h3>Set Monthly Target</h3>
