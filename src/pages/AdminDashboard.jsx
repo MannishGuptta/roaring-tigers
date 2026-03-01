@@ -377,6 +377,8 @@ function AdminDashboard() {
 
   const getCurrentPeriod = () => {
     const date = new Date();
+  const getCurrentPeriod = () => {
+    const date = new Date();
     const month = date.toLocaleString('default', { month: 'long' }).toLowerCase();
     const year = date.getFullYear();
     return `${month}-${year}`;
@@ -395,46 +397,51 @@ function AdminDashboard() {
   };
 
   const handleAddRM = () => {
-  setEditingItem(null);
-  setRmForm({ name: '', phone: '', email: '', password: '', status: 'active' });
-  setShowRMModal(true);
-};
+    setEditingItem(null);
+    setRmForm({ name: '', phone: '', email: '', password: '', status: 'active' });
+    setShowRMModal(true);
+  };
 
-const handleEditRM = (rm) => {
-  setEditingItem(rm);
-  setRmForm({
-    name: rm.name,
-    phone: rm.phone,
-    email: rm.email,
-    password: '',
-    status: rm.status
-  });
-  setShowRMModal(true);
-};
-
-const handleRMSave = async (e) => {
-  e.preventDefault();
-  try {
-    const url = editingItem ? `${API_URL}/rms/${editingItem.id}` : `${API_URL}/rms`;
-    const method = editingItem ? 'PUT' : 'POST';
-    
-    const response = await fetch(url, {
-      method: method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(rmForm)
+  const handleEditRM = (rm) => {
+    setEditingItem(rm);
+    setRmForm({
+      name: rm.name,
+      phone: rm.phone,
+      email: rm.email,
+      password: '',
+      status: rm.status
     });
+    setShowRMModal(true);
+  };
 
-    if (response.ok) {
-      setShowRMModal(false);
-      loadAllData(); // Refresh the data after successful save
-    } else {
-      alert('Failed to save RM');
+  const handleRMSave = async (e) => {
+    e.preventDefault();
+    try {
+      const url = editingItem ? `${API_URL}/rms/${editingItem.id}` : `${API_URL}/rms`;
+      const method = editingItem ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rmForm)
+      });
+      
+      if (response.ok) {
+        setShowRMModal(false);
+        loadAllData();
+      } else {
+        alert('Failed to save RM');
+      }
+    } catch (err) {
+      console.error('Error saving RM:', err);
+      alert('Error saving RM');
     }
-  } catch (err) {
-    console.error('Error saving RM:', err);
-    alert('Error saving RM');
-  }
-};
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('admin');
+    navigate('/admin');
+  };
 
   const handleAddCP = () => {
     setEditingItem(null);
