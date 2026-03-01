@@ -395,24 +395,24 @@ function AdminDashboard() {
   };
 
   const handleAddRM = () => {
-    setEditingItem(null);
-    setRmForm({ name: '', phone: '', email: '', password: '', status: 'active' });
-    setShowRMModal(true);
-  };
+  setEditingItem(null);
+  setRmForm({ name: '', phone: '', email: '', password: '', status: 'active' });
+  setShowRMModal(true);
+};
 
-  const handleEditRM = (rm) => {
-    setEditingItem(rm);
-    setRmForm({
-      name: rm.name,
-      phone: rm.phone,
-      email: rm.email,
-      password: '',
-      status: rm.status
-    });
-    setShowRMModal(true);
-  };
+const handleEditRM = (rm) => {
+  setEditingItem(rm);
+  setRmForm({
+    name: rm.name,
+    phone: rm.phone,
+    email: rm.email,
+    password: '',
+    status: rm.status
+  });
+  setShowRMModal(true);
+};
 
-  const handleRMSave = async (e) => {
+const handleRMSave = async (e) => {
   e.preventDefault();
   try {
     const url = editingItem ? `${API_URL}/rms/${editingItem.id}` : `${API_URL}/rms`;
@@ -426,7 +426,7 @@ function AdminDashboard() {
 
     if (response.ok) {
       setShowRMModal(false);
-      loadAllData(); // Refresh the data
+      loadAllData(); // Refresh the data after successful save
     } else {
       alert('Failed to save RM');
     }
@@ -435,33 +435,6 @@ function AdminDashboard() {
     alert('Error saving RM');
   }
 };
-   // something
-}
-  setShowRMModal(false);
-  loadAllData();  // ← Add this line
-} else {
-  alert('Failed to save RM');
-}
-loadAllData();
-handleRMSave = async (e) => {
-    e.preventDefault();
-    try {
-      const url = editingItem ? `${API_URL}/rms/${editingItem.id}` : `${API_URL}/rms`;
-      const method = editingItem ? 'PUT' : 'POST';
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(rmForm)
-      });
-      if (response.ok) {
-        setShowRMModal(false);
-        loadAllData();
-      } else alert('Failed to save RM');
-    } catch (err) {
-      console.error('Error saving RM:', err);
-      alert('Error saving RM');
-    }
-  };
 
   const handleAddCP = () => {
     setEditingItem(null);
