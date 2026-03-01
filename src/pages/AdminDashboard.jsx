@@ -495,72 +495,90 @@ const handleRMSave = async (e) => {
     });
     setShowTargetModal(true);
   };
-   const handleTargetSave = async (e) => {
-  e.preventDefault();
-  try {
-    // Parse the period from form (e.g., "march-2026")
-    const periodStr = targetForm.period;
-    console.log('Period from form:', periodStr);
-    
-    // Split into month and year
-    const [monthName, yearStr] = periodStr.split('-');
-    const year = parseInt(yearStr);
-    
-    // Convert month name to month number (0-11)
-    const monthMap = {
-      'january': 0, 'february': 1, 'march': 2, 'april': 3,
-      'may': 4, 'june': 5, 'july': 6, 'august': 7,
-      'september': 8, 'october': 9, 'november': 10, 'december': 11
-    };
-    
-    const monthIndex = monthMap[monthName.toLowerCase()];
-    
-    if (monthIndex === undefined) {
-      throw new Error(`Invalid month name: ${monthName}`);
-    }
-    
-    // Create date and format as YYYY-MM-DD
-    const targetDate = new Date(year, monthIndex, 1);
-    const formattedDate = targetDate.toISOString().split('T')[0];
-    
-    console.log('Saving targets for month:', formattedDate);
-    
-    // Prepare a single combined target record
-    const targetData = {
-      rm_id: targetForm.rm_id,
-      period: periodStr,
-      cp_onboarding_target: parseInt(targetForm.cp_onboarding_target) || 0,
-      active_cp_target: parseInt(targetForm.active_cp_target) || 0,
-      meetings_target: parseInt(targetForm.meetings_target) || 0,
-      revenue_target: parseInt(targetForm.revenue_target) || 0,
-      target_month: formattedDate
-    };
-
-    console.log('Saving target data:', targetData);
-
-    // Save to targets endpoint
-    const response = await fetch(`${API_URL}/targets`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(targetData)
+     const handleAddTarget = (rm) => {
+    setEditingItem(null);
+    setTargetForm({
+      rm_id: rm.id,
+      period: getCurrentPeriod(),
+      cp_onboarding_target: '',
+      active_cp_target: '',
+      meetings_target: '',
+      revenue_target: ''
     });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Failed to save target:', errorText);
-      alert('Failed to save target');
-      return;
+    setShowTargetModal(true);
+  };
+
+  const handleTargetSave = async (e) => {
+    e.preventDefault();
+    try {
+      // Parse the period from form (e.g., "march-2026")
+      const periodStr = targetForm.period;
+      console.log('Period from form:', periodStr);
+      
+      // Split into month and year
+      const [monthName, yearStr] = periodStr.split('-');
+      const year = parseInt(yearStr);
+      
+      // Convert month name to month number (0-11)
+      const monthMap = {
+        'january': 0, 'february': 1, 'march': 2, 'april': 3,
+        'may': 4, 'june': 5, 'july': 6, 'august': 7,
+        'september': 8, 'october': 9, 'november': 10, 'december': 11
+      };
+      
+      const monthIndex = monthMap[monthName.toLowerCase()];
+      
+      if (monthIndex === undefined) {
+        throw new Error(`Invalid month name: ${monthName}`);
+      }
+      
+      // Create date and format as YYYY-MM-DD
+      const targetDate = new Date(year, monthIndex, 1);
+      const formattedDate = targetDate.toISOString().split('T')[0];
+      
+      console.log('Saving targets for month:', formattedDate);
+      
+      // Prepare a single combined target record
+      const targetData = {
+        rm_id: targetForm.rm_id,
+        period: periodStr,
+        cp_onboarding_target: parseInt(targetForm.cp_onboarding_target) || 0,
+        active_cp_target: parseInt(targetForm.active_cp_target) || 0,
+        meetings_target: parseInt(targetForm.meetings_target) || 0,
+        revenue_target: parseInt(targetForm.revenue_target) || 0,
+        target_month: formattedDate
+      };
+
+      console.log('Saving target data:', targetData);
+
+      // Save to targets endpoint
+      const response = await fetch(`${API_URL}/targets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(targetData)
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to save target:', errorText);
+        alert('Failed to save target');
+        return;
+      }
+      
+      alert('Target saved successfully!');
+      setShowTargetModal(false);
+      loadAllData();
+      
+    } catch (err) {
+      console.error('Error saving targets:', err);
+      alert('Error saving targets: ' + err.message);
     }
-    
-    alert('Target saved successfully!');
-    setShowTargetModal(false);
-    loadAllData();
-    
-  } catch (err) {
-    console.error('Error saving targets:', err);
-    alert('Error saving targets: ' + err.message);
-  }
-};
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('admin');
+    navigate('/admin');
+  };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -569,42 +587,6 @@ const handleRMSave = async (e) => {
       minimumFractionDigits: 0
     }).format(amount || 0);
   };
-  const getProgressColor = (percentage) => {
-    if (percentage >= 100) return '#4caf50';
-    if (percentage >= 75) return '#8bc34a';
-    if (percentage >= 50) return '#ffc107';
-    if (percentage >= 25) return '#ff9800';
-    return '#f44336';
-  };
-
-  if (loading) {
-    return (
-      <div style={styles.loadingContainer}>
-        <div style={styles.loading}>Loading admin dashboard...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={styles.errorContainer}>
-        <h2>Error Loading Data</h2>
-        <p style={{ color: 'red' }}>{error}</p>
-        <button onClick={loadAllData} style={styles.retryBtn}>Retry</button>
-        <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
-      </div>
-    );
-  }
-
-  return (
-    <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>👑 Admin Dashboard</h1>
-          <p style={styles.subtitle}>Roaring Tigers CRM Management</p>
-        </div>
-        <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
       </div>
 
       {/* Time Range Filter */}
