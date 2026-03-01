@@ -55,6 +55,12 @@ function AdminDashboard() {
   const navigate = useNavigate();
   const API_URL = 'https://roaring-tigers-backend.onrender.com';
 
+  // Logout function - placed here for proper scope
+  const handleLogout = () => {
+    sessionStorage.removeItem('admin');
+    navigate('/admin');
+  };
+
   useEffect(() => {
     const admin = sessionStorage.getItem('admin');
     if (!admin) {
