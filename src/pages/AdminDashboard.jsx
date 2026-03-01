@@ -525,53 +525,34 @@ const handleRMSave = async (e) => {
     
     console.log('Saving targets for month:', formattedDate);
     
-    // Prepare targets for each KPI type
-    const kpiTargets = [
-      {
-        rm_id: targetForm.rm_id,
-        kpi_type: 'cp_onboarded',
-        monthly_target: parseInt(targetForm.cp_onboarding_target) || 0,
-        target_month: formattedDate
-      },
-      {
-        rm_id: targetForm.rm_id,
-        kpi_type: 'cp_active',
-        monthly_target: parseInt(targetForm.active_cp_target) || 0,
-        target_month: formattedDate
-      },
-      {
-        rm_id: targetForm.rm_id,
-        kpi_type: 'meetings',
-        monthly_target: parseInt(targetForm.meetings_target) || 0,
-        target_month: formattedDate
-      },
-      {
-        rm_id: targetForm.rm_id,
-        kpi_type: 'sales_amount',
-        monthly_target: parseInt(targetForm.revenue_target) || 0,
-        target_month: formattedDate
-      }
-    ];
+    // Prepare a single combined target record
+    const targetData = {
+      rm_id: targetForm.rm_id,
+      period: periodStr,
+      cp_onboarding_target: parseInt(targetForm.cp_onboarding_target) || 0,
+      active_cp_target: parseInt(targetForm.active_cp_target) || 0,
+      meetings_target: parseInt(targetForm.meetings_target) || 0,
+      revenue_target: parseInt(targetForm.revenue_target) || 0,
+      target_month: formattedDate
+    };
 
-    console.log('Saving KPI targets:', kpiTargets);
+    console.log('Saving target data:', targetData);
 
-    // Save each target to kpi_targets table
-    for (const target of kpiTargets) {
-      const response = await fetch(`${API_URL}/kpi_targets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(target)
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Failed to save ${target.kpi_type}:`, errorText);
-        alert(`Failed to save ${target.kpi_type} target`);
-        return;
-      }
+    // Save to targets endpoint
+    const response = await fetch(`${API_URL}/targets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(targetData)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to save target:', errorText);
+      alert('Failed to save target');
+      return;
     }
     
-    alert('All targets saved successfully to kpi_targets table!');
+    alert('Target saved successfully!');
     setShowTargetModal(false);
     loadAllData();
     
@@ -580,11 +561,6 @@ const handleRMSave = async (e) => {
     alert('Error saving targets: ' + err.message);
   }
 };
-
-  const handleLogout = () => {
-    sessionStorage.removeItem('admin');
-    navigate('/admin');
-  };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
