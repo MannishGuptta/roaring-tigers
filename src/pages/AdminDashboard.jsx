@@ -495,7 +495,6 @@ const handleRMSave = async (e) => {
     });
     setShowTargetModal(true);
   };
-
   const handleTargetSave = async (e) => {
     e.preventDefault();
     try {
@@ -507,18 +506,30 @@ const handleRMSave = async (e) => {
         meetings_target: parseInt(targetForm.meetings_target) || 0,
         revenue_target: parseInt(targetForm.revenue_target) || 0
       };
+      
+      console.log('Saving target:', targetData); // Debug log
+      console.log('API_URL:', API_URL); // Debug log
+      
       const response = await fetch(`${API_URL}/targets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(targetData)
       });
+      
+      console.log('Response status:', response.status); // Debug log
+      
       if (response.ok) {
         setShowTargetModal(false);
         loadAllData();
-      } else alert('Failed to save target');
+        alert('Target saved successfully!');
+      } else {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        alert('Failed to save target. Check console for details.');
+      }
     } catch (err) {
       console.error('Error saving target:', err);
-      alert('Error saving target');
+      alert('Error saving target: ' + err.message);
     }
   };
 
