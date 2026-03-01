@@ -495,72 +495,87 @@ const handleRMSave = async (e) => {
     });
     setShowTargetModal(true);
   };
+   const handleAddTarget = (rm) => {
+    setEditingItem(null);
+    setTargetForm({
+      rm_id: rm.id,
+      period: getCurrentPeriod(),
+      cp_onboarding_target: '',
+      active_cp_target: '',
+      meetings_target: '',
+      revenue_target: ''
+    });
+    setShowTargetModal(true);
+  };
+
   const handleTargetSave = async (e) => {
-  e.preventDefault();
-  try {
-    // Parse the period string (e.g., "march-2026")
-    const selectedMonth = targetForm.period;
-    const [month, year] = selectedMonth.split('-');
-    const targetDate = new Date(`${month} 1, ${year}`);
-    const formattedDate = targetDate.toISOString().split('T')[0];
-    
-    console.log('Saving targets for date:', formattedDate);
-    
-    // Prepare targets for each KPI type
-    const kpiTargets = [
-      {
-        rm_id: targetForm.rm_id,
-        kpi_type: 'cp_onboarded',
-        monthly_target: parseInt(targetForm.cp_onboarding_target) || 0,
-        target_month: formattedDate
-      },
-      {
-        rm_id: targetForm.rm_id,
-        kpi_type: 'cp_active',
-        monthly_target: parseInt(targetForm.active_cp_target) || 0,
-        target_month: formattedDate
-      },
-      {
-        rm_id: targetForm.rm_id,
-        kpi_type: 'meetings',
-        monthly_target: parseInt(targetForm.meetings_target) || 0,
-        target_month: formattedDate
-      },
-      {
-        rm_id: targetForm.rm_id,
-        kpi_type: 'sales_amount',
-        monthly_target: parseInt(targetForm.revenue_target) || 0,
-        target_month: formattedDate
-      }
-    ];
-
-    console.log('Saving KPI targets:', kpiTargets);
-
-    // Save each target to kpi_targets table
-    for (const target of kpiTargets) {
-      const response = await fetch(`${API_URL}/kpi_targets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(target)
-      });
+    e.preventDefault();
+    try {
+      // Get current date info for target month
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth() + 1; // 1-12
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Failed to save ${target.kpi_type}:`, errorText);
-        alert(`Failed to save ${target.kpi_type} target`);
-        return;
+      // Format as YYYY-MM-DD for database
+      const targetMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+      
+      console.log('Saving targets for month:', targetMonth);
+      
+      // Prepare targets for each KPI type
+      const kpiTargets = [
+        {
+          rm_id: targetForm.rm_id,
+          kpi_type: 'cp_onboarded',
+          monthly_target: parseInt(targetForm.cp_onboarding_target) || 0,
+          target_month: targetMonth
+        },
+        {
+          rm_id: targetForm.rm_id,
+          kpi_type: 'cp_active',
+          monthly_target: parseInt(targetForm.active_cp_target) || 0,
+          target_month: targetMonth
+        },
+        {
+          rm_id: targetForm.rm_id,
+          kpi_type: 'meetings',
+          monthly_target: parseInt(targetForm.meetings_target) || 0,
+          target_month: targetMonth
+        },
+        {
+          rm_id: targetForm.rm_id,
+          kpi_type: 'sales_amount',
+          monthly_target: parseInt(targetForm.revenue_target) || 0,
+          target_month: targetMonth
+        }
+      ];
+
+      console.log('Saving KPI targets:', kpiTargets);
+
+      // Save each target to kpi_targets table
+      for (const target of kpiTargets) {
+        const response = await fetch(`${API_URL}/kpi_targets`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(target)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Failed to save ${target.kpi_type}:`, errorText);
+          alert(`Failed to save ${target.kpi_type} target`);
+          return;
+        }
       }
+      
+      alert('All targets saved successfully to kpi_targets table!');
+      setShowTargetModal(false);
+      loadAllData();
+      
+    } catch (err) {
+      console.error('Error saving targets:', err);
+      alert('Error saving targets: ' + err.message);
     }
-    
-    alert('All targets saved successfully to kpi_targets table!');
-    setShowTargetModal(false);
-    loadAllData();
-    
-  } catch (err) {
-    console.error('Error saving targets:', err);
-    alert('Error saving targets: ' + err.message);
-  }
-};
+  };
 
   const handleLogout = () => {
     sessionStorage.removeItem('admin');
@@ -574,7 +589,6 @@ const handleRMSave = async (e) => {
       minimumFractionDigits: 0
     }).format(amount || 0);
   };
-
   const getProgressColor = (percentage) => {
     if (percentage >= 100) return '#4caf50';
     if (percentage >= 75) return '#8bc34a';
