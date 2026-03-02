@@ -162,34 +162,58 @@ function AdminDashboard() {
   const loadAllData = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const [rmsRes, cpsRes, salesRes, meetingsRes, targetsRes] = await Promise.all([
-        fetch(`${API_URL}/rms`),
-        fetch(`${API_URL}/channel_partners`),
-        fetch(`${API_URL}/sales`),
-        fetch(`${API_URL}/meetings`),
-        fetch(`${API_URL}/kpi_targets`)
+        fetch(`${API_URL}/rms`).catch(err => ({ ok: false, error: err })),
+        fetch(`${API_URL}/channel_partners`).catch(err => ({ ok: false, error: err })),
+        fetch(`${API_URL}/sales`).catch(err => ({ ok: false, error: err })),
+        fetch(`${API_URL}/meetings`).catch(err => ({ ok: false, error: err })),
+        fetch(`${API_URL}/kpi_targets`).catch(err => ({ ok: false, error: err }))
       ]);
       
-      const rmsData = await rmsRes.json() || [];
-      const cpsData = await cpsRes.json() || [];
-      const salesData = await salesRes.json() || [];
-      const meetingsData = await meetingsRes.json() || [];
-      const targetsData = await targetsRes.json() || [];
+      // Safely parse responses
+      const rmsData = rmsRes.ok ? await rmsRes.json().catch(() => []) : [];
+      const cpsData = cpsRes.ok ? await cpsRes.json().catch(() => []) : [];
+      const salesData = salesRes.ok ? await salesRes.json().catch(() => []) : [];
+      const meetingsData = meetingsRes.ok ? await meetingsRes.json().catch(() => []) : [];
+      const targetsData = targetsRes.ok ? await targetsRes.json().catch(() => []) : [];
       
-      setRms(rmsData);
-      setCps(cpsData);
-      setSales(salesData);
-      setMeetings(meetingsData);
-      setTargets(targetsData);
+      // Ensure data is always arrays
+      setRms(Array.isArray(rmsData) ? rmsData : []);
+      setCps(Array.isArray(cpsData) ? cpsData : []);
+      setSales(Array.isArray(salesData) ? salesData : []);
+      setMeetings(Array.isArray(meetingsData) ? meetingsData : []);
+      setTargets(Array.isArray(targetsData) ? targetsData : []);
       
       // Calculate RM performance with time range
-      calculateRmPerformance(rmsData, cpsData, salesData, meetingsData, targetsData, timeRange);
+      calculateRmPerformance(
+        Array.isArray(rmsData) ? rmsData : [],
+        Array.isArray(cpsData) ? cpsData : [],
+        Array.isArray(salesData) ? salesData : [],
+        Array.isArray(meetingsData) ? meetingsData : [],
+        Array.isArray(targetsData) ? targetsData : [],
+        timeRange
+      );
       
       // Calculate team stats
-      calculateTeamStats(rmsData, cpsData, salesData, meetingsData, timeRange);
+      calculateTeamStats(
+        Array.isArray(rmsData) ? rmsData : [],
+        Array.isArray(cpsData) ? cpsData : [],
+        Array.isArray(salesData) ? salesData : [],
+        Array.isArray(meetingsData) ? meetingsData : [],
+        timeRange
+      );
       
       // Calculate KPI analysis
-      calculateKPIAnalysis(rmsData, cpsData, salesData, meetingsData, targetsData, timeRange);
+      calculateKPIAnalysis(
+        Array.isArray(rmsData) ? rmsData : [],
+        Array.isArray(cpsData) ? cpsData : [],
+        Array.isArray(salesData) ? salesData : [],
+        Array.isArray(meetingsData) ? meetingsData : [],
+        Array.isArray(targetsData) ? targetsData : [],
+        timeRange
+      );
       
     } catch (err) {
       console.error('Error loading data:', err);
@@ -210,35 +234,42 @@ function AdminDashboard() {
 
   // ============= CALCULATION FUNCTIONS =============
   const calculateRmPerformance = (rmsData, cpsData, salesData, meetingsData, targetsData, range) => {
+    // Ensure inputs are arrays
+    const safeRms = Array.isArray(rmsData) ? rmsData : [];
+    const safeCps = Array.isArray(cpsData) ? cpsData : [];
+    const safeSales = Array.isArray(salesData) ? salesData : [];
+    const safeMeetings = Array.isArray(meetingsData) ? meetingsData : [];
+    const safeTargets = Array.isArray(targetsData) ? targetsData : [];
+    
     const startDate = getDateRange(range);
     
-    const performance = rmsData.map(rm => {
-      const rmId = String(rm.id);
+    const performance = safeRms.map(rm => {
+      const rmId = String(rm?.id || '');
       
       // Get RM's CPs
-      const rmCPs = cpsData.filter(cp => String(cp.rm_id) === rmId);
+      const rmCPs = safeCps.filter(cp => String(cp?.rm_id) === rmId);
       
       // Get RM's sales in date range
-      const rmSales = salesData.filter(sale => 
-        String(sale.rm_id) === rmId && 
-        new Date(sale.sale_date) >= startDate
+      const rmSales = safeSales.filter(sale => 
+        String(sale?.rm_id) === rmId && 
+        sale?.sale_date && new Date(sale.sale_date) >= startDate
       );
       
       // Get RM's meetings in date range
-      const rmMeetings = meetingsData.filter(meeting => 
-        String(meeting.rm_id) === rmId && 
-        new Date(meeting.meeting_date) >= startDate
+      const rmMeetings = safeMeetings.filter(meeting => 
+        String(meeting?.rm_id) === rmId && 
+        meeting?.meeting_date && new Date(meeting.meeting_date) >= startDate
       );
       
       // CPs onboarded in date range
       const rmCPsOnboarded = rmCPs.filter(cp => 
-        cp.onboard_date && new Date(cp.onboard_date) >= startDate
+        cp?.onboard_date && new Date(cp.onboard_date) >= startDate
       );
       
       // Calculate active CPs (CPs with sales in date range)
       const cpWithSales = new Set();
       rmSales.forEach(sale => {
-        if (sale.cp_id) cpWithSales.add(String(sale.cp_id));
+        if (sale?.cp_id) cpWithSales.add(String(sale.cp_id));
       });
       const activeCPs = cpWithSales.size;
       
@@ -246,9 +277,9 @@ function AdminDashboard() {
       const currentMonth = new Date().toISOString().split('T')[0].substring(0, 7); // YYYY-MM
       
       // Get all targets for this RM for current month
-      const rmKpiTargets = targetsData.filter(t => 
-        String(t.rm_id) === rmId && 
-        t.target_month && t.target_month.startsWith(currentMonth)
+      const rmKpiTargets = safeTargets.filter(t => 
+        String(t?.rm_id) === rmId && 
+        t?.target_month && t.target_month.startsWith(currentMonth)
       );
       
       // Extract weekly and monthly targets based on time range
@@ -259,23 +290,23 @@ function AdminDashboard() {
       
       if (range === 'week') {
         // For week view, use weekly_target
-        cpTarget = rmKpiTargets.find(t => t.kpi_type === 'cp_onboarded')?.weekly_target || 0;
-        activeTarget = rmKpiTargets.find(t => t.kpi_type === 'cp_active')?.weekly_target || 0;
-        meetingsTarget = rmKpiTargets.find(t => t.kpi_type === 'meetings')?.weekly_target || 0;
-        revenueTarget = rmKpiTargets.find(t => t.kpi_type === 'sales_amount')?.weekly_target || 0;
+        cpTarget = rmKpiTargets.find(t => t?.kpi_type === 'cp_onboarded')?.weekly_target || 0;
+        activeTarget = rmKpiTargets.find(t => t?.kpi_type === 'cp_active')?.weekly_target || 0;
+        meetingsTarget = rmKpiTargets.find(t => t?.kpi_type === 'meetings')?.weekly_target || 0;
+        revenueTarget = rmKpiTargets.find(t => t?.kpi_type === 'sales_amount')?.weekly_target || 0;
       } else if (range === 'today') {
         // For today view, calculate daily from weekly
-        const weekTarget = rmKpiTargets.find(t => t.kpi_type === 'cp_onboarded')?.weekly_target || 0;
+        const weekTarget = rmKpiTargets.find(t => t?.kpi_type === 'cp_onboarded')?.weekly_target || 0;
         cpTarget = Math.round(weekTarget / 7);
-        activeTarget = Math.round((rmKpiTargets.find(t => t.kpi_type === 'cp_active')?.weekly_target || 0) / 7);
-        meetingsTarget = Math.round((rmKpiTargets.find(t => t.kpi_type === 'meetings')?.weekly_target || 0) / 7);
-        revenueTarget = Math.round((rmKpiTargets.find(t => t.kpi_type === 'sales_amount')?.weekly_target || 0) / 7);
+        activeTarget = Math.round((rmKpiTargets.find(t => t?.kpi_type === 'cp_active')?.weekly_target || 0) / 7);
+        meetingsTarget = Math.round((rmKpiTargets.find(t => t?.kpi_type === 'meetings')?.weekly_target || 0) / 7);
+        revenueTarget = Math.round((rmKpiTargets.find(t => t?.kpi_type === 'sales_amount')?.weekly_target || 0) / 7);
       } else {
         // For month view, use monthly_target
-        cpTarget = rmKpiTargets.find(t => t.kpi_type === 'cp_onboarded')?.monthly_target || 0;
-        activeTarget = rmKpiTargets.find(t => t.kpi_type === 'cp_active')?.monthly_target || 0;
-        meetingsTarget = rmKpiTargets.find(t => t.kpi_type === 'meetings')?.monthly_target || 0;
-        revenueTarget = rmKpiTargets.find(t => t.kpi_type === 'sales_amount')?.monthly_target || 0;
+        cpTarget = rmKpiTargets.find(t => t?.kpi_type === 'cp_onboarded')?.monthly_target || 0;
+        activeTarget = rmKpiTargets.find(t => t?.kpi_type === 'cp_active')?.monthly_target || 0;
+        meetingsTarget = rmKpiTargets.find(t => t?.kpi_type === 'meetings')?.monthly_target || 0;
+        revenueTarget = rmKpiTargets.find(t => t?.kpi_type === 'sales_amount')?.monthly_target || 0;
       }
       
       // Calculate achievements
@@ -283,7 +314,7 @@ function AdminDashboard() {
         cp_onboarding: rmCPsOnboarded.length,
         active_cp: activeCPs,
         meetings: rmMeetings.length,
-        revenue: rmSales.reduce((sum, s) => sum + (s.sale_amount || 0), 0)
+        revenue: rmSales.reduce((sum, s) => sum + (s?.sale_amount || 0), 0)
       };
       
       // Calculate percentages vs target
@@ -299,14 +330,14 @@ function AdminDashboard() {
       const daysElapsed = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24));
       const totalDays = range === 'today' ? 1 : range === 'week' ? 7 : 
         new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-      const daysRemaining = totalDays - daysElapsed;
+      const daysRemaining = Math.max(0, totalDays - daysElapsed);
       
       // Calculate required daily rate to meet target
       const requiredDaily = {
-        cp_onboarding: cpTarget ? (cpTarget - achievements.cp_onboarding) / Math.max(1, daysRemaining) : 0,
-        active_cp: activeTarget ? (activeTarget - achievements.active_cp) / Math.max(1, daysRemaining) : 0,
-        meetings: meetingsTarget ? (meetingsTarget - achievements.meetings) / Math.max(1, daysRemaining) : 0,
-        revenue: revenueTarget ? (revenueTarget - achievements.revenue) / Math.max(1, daysRemaining) : 0
+        cp_onboarding: cpTarget && daysRemaining > 0 ? (cpTarget - achievements.cp_onboarding) / daysRemaining : 0,
+        active_cp: activeTarget && daysRemaining > 0 ? (activeTarget - achievements.active_cp) / daysRemaining : 0,
+        meetings: meetingsTarget && daysRemaining > 0 ? (meetingsTarget - achievements.meetings) / daysRemaining : 0,
+        revenue: revenueTarget && daysRemaining > 0 ? (revenueTarget - achievements.revenue) / daysRemaining : 0
       };
       
       // Determine status
@@ -337,24 +368,30 @@ function AdminDashboard() {
   };
 
   const calculateTeamStats = (rmsData, cpsData, salesData, meetingsData, range) => {
+    // Ensure inputs are arrays
+    const safeRms = Array.isArray(rmsData) ? rmsData : [];
+    const safeCps = Array.isArray(cpsData) ? cpsData : [];
+    const safeSales = Array.isArray(salesData) ? salesData : [];
+    const safeMeetings = Array.isArray(meetingsData) ? meetingsData : [];
+    
     const startDate = getDateRange(range);
     
     const stats = {
-      totalRMs: rmsData.length,
-      totalCPs: cpsData.length,
-      totalSales: salesData.length,
-      totalMeetings: meetingsData.length,
-      totalRevenue: salesData.reduce((sum, s) => sum + (s.sale_amount || 0), 0),
+      totalRMs: safeRms.length,
+      totalCPs: safeCps.length,
+      totalSales: safeSales.length,
+      totalMeetings: safeMeetings.length,
+      totalRevenue: safeSales.reduce((sum, s) => sum + (s?.sale_amount || 0), 0),
       
       periodStats: {
-        cp_onboarding: cpsData.filter(cp => cp.onboard_date && new Date(cp.onboard_date) >= startDate).length,
-        sales: salesData.filter(sale => new Date(sale.sale_date) >= startDate).length,
-        meetings: meetingsData.filter(meeting => new Date(meeting.meeting_date) >= startDate).length,
-        revenue: salesData.filter(sale => new Date(sale.sale_date) >= startDate)
-                         .reduce((sum, s) => sum + (s.sale_amount || 0), 0)
+        cp_onboarding: safeCps.filter(cp => cp?.onboard_date && new Date(cp.onboard_date) >= startDate).length,
+        sales: safeSales.filter(sale => sale?.sale_date && new Date(sale.sale_date) >= startDate).length,
+        meetings: safeMeetings.filter(meeting => meeting?.meeting_date && new Date(meeting.meeting_date) >= startDate).length,
+        revenue: safeSales.filter(sale => sale?.sale_date && new Date(sale.sale_date) >= startDate)
+                         .reduce((sum, s) => sum + (s?.sale_amount || 0), 0)
       },
       
-      activeCPs: new Set(salesData.map(s => s.cp_id)).size,
+      activeCPs: new Set(safeSales.map(s => s?.cp_id).filter(id => id)).size,
       
       topPerformer: null,
       needsAttention: []
@@ -362,21 +399,28 @@ function AdminDashboard() {
     
     // Find top performer and those needing attention
     if (rmPerformance.length > 0) {
-      const sorted = [...rmPerformance].sort((a, b) => b.avgPercentage - a.avgPercentage);
-      stats.topPerformer = sorted[0];
-      stats.needsAttention = sorted.filter(rm => rm.avgPercentage < 50);
+      const sorted = [...rmPerformance].sort((a, b) => (b?.avgPercentage || 0) - (a?.avgPercentage || 0));
+      stats.topPerformer = sorted[0] || null;
+      stats.needsAttention = sorted.filter(rm => (rm?.avgPercentage || 0) < 50);
     }
     
     setTeamStats(stats);
   };
 
   const calculateKPIAnalysis = (rmsData, cpsData, salesData, meetingsData, targetsData, range) => {
+    // Ensure inputs are arrays
+    const safeRms = Array.isArray(rmsData) ? rmsData : [];
+    const safeCps = Array.isArray(cpsData) ? cpsData : [];
+    const safeSales = Array.isArray(salesData) ? salesData : [];
+    const safeMeetings = Array.isArray(meetingsData) ? meetingsData : [];
+    const safeTargets = Array.isArray(targetsData) ? targetsData : [];
+    
     const startDate = getDateRange(range);
     const currentMonth = new Date().toISOString().split('T')[0].substring(0, 7); // YYYY-MM
     
     // Get all kpi_targets for current month
-    const monthTargets = targetsData.filter(t => 
-      t.target_month && t.target_month.startsWith(currentMonth)
+    const monthTargets = safeTargets.filter(t => 
+      t?.target_month && t.target_month.startsWith(currentMonth)
     );
     
     // Aggregate team targets based on time range
@@ -390,31 +434,31 @@ function AdminDashboard() {
     if (range === 'week') {
       // Sum weekly targets
       teamTargets.cp_onboarding = monthTargets
-        .filter(t => t.kpi_type === 'cp_onboarded')
-        .reduce((sum, t) => sum + (t.weekly_target || 0), 0);
+        .filter(t => t?.kpi_type === 'cp_onboarded')
+        .reduce((sum, t) => sum + (t?.weekly_target || 0), 0);
       teamTargets.active_cp = monthTargets
-        .filter(t => t.kpi_type === 'cp_active')
-        .reduce((sum, t) => sum + (t.weekly_target || 0), 0);
+        .filter(t => t?.kpi_type === 'cp_active')
+        .reduce((sum, t) => sum + (t?.weekly_target || 0), 0);
       teamTargets.meetings = monthTargets
-        .filter(t => t.kpi_type === 'meetings')
-        .reduce((sum, t) => sum + (t.weekly_target || 0), 0);
+        .filter(t => t?.kpi_type === 'meetings')
+        .reduce((sum, t) => sum + (t?.weekly_target || 0), 0);
       teamTargets.revenue = monthTargets
-        .filter(t => t.kpi_type === 'sales_amount')
-        .reduce((sum, t) => sum + (t.weekly_target || 0), 0);
+        .filter(t => t?.kpi_type === 'sales_amount')
+        .reduce((sum, t) => sum + (t?.weekly_target || 0), 0);
     } else if (range === 'today') {
       // Sum daily targets (weekly / 7)
       const weeklyCP = monthTargets
-        .filter(t => t.kpi_type === 'cp_onboarded')
-        .reduce((sum, t) => sum + (t.weekly_target || 0), 0);
+        .filter(t => t?.kpi_type === 'cp_onboarded')
+        .reduce((sum, t) => sum + (t?.weekly_target || 0), 0);
       const weeklyActive = monthTargets
-        .filter(t => t.kpi_type === 'cp_active')
-        .reduce((sum, t) => sum + (t.weekly_target || 0), 0);
+        .filter(t => t?.kpi_type === 'cp_active')
+        .reduce((sum, t) => sum + (t?.weekly_target || 0), 0);
       const weeklyMeetings = monthTargets
-        .filter(t => t.kpi_type === 'meetings')
-        .reduce((sum, t) => sum + (t.weekly_target || 0), 0);
+        .filter(t => t?.kpi_type === 'meetings')
+        .reduce((sum, t) => sum + (t?.weekly_target || 0), 0);
       const weeklyRevenue = monthTargets
-        .filter(t => t.kpi_type === 'sales_amount')
-        .reduce((sum, t) => sum + (t.weekly_target || 0), 0);
+        .filter(t => t?.kpi_type === 'sales_amount')
+        .reduce((sum, t) => sum + (t?.weekly_target || 0), 0);
       
       teamTargets.cp_onboarding = Math.round(weeklyCP / 7);
       teamTargets.active_cp = Math.round(weeklyActive / 7);
@@ -423,26 +467,26 @@ function AdminDashboard() {
     } else {
       // Sum monthly targets
       teamTargets.cp_onboarding = monthTargets
-        .filter(t => t.kpi_type === 'cp_onboarded')
-        .reduce((sum, t) => sum + (t.monthly_target || 0), 0);
+        .filter(t => t?.kpi_type === 'cp_onboarded')
+        .reduce((sum, t) => sum + (t?.monthly_target || 0), 0);
       teamTargets.active_cp = monthTargets
-        .filter(t => t.kpi_type === 'cp_active')
-        .reduce((sum, t) => sum + (t.monthly_target || 0), 0);
+        .filter(t => t?.kpi_type === 'cp_active')
+        .reduce((sum, t) => sum + (t?.monthly_target || 0), 0);
       teamTargets.meetings = monthTargets
-        .filter(t => t.kpi_type === 'meetings')
-        .reduce((sum, t) => sum + (t.monthly_target || 0), 0);
+        .filter(t => t?.kpi_type === 'meetings')
+        .reduce((sum, t) => sum + (t?.monthly_target || 0), 0);
       teamTargets.revenue = monthTargets
-        .filter(t => t.kpi_type === 'sales_amount')
-        .reduce((sum, t) => sum + (t.monthly_target || 0), 0);
+        .filter(t => t?.kpi_type === 'sales_amount')
+        .reduce((sum, t) => sum + (t?.monthly_target || 0), 0);
     }
     
     // Calculate team achievements in date range
     const teamAchievements = {
-      cp_onboarding: cpsData.filter(cp => cp.onboard_date && new Date(cp.onboard_date) >= startDate).length,
-      active_cp: new Set(salesData.filter(s => new Date(s.sale_date) >= startDate).map(s => s.cp_id)).size,
-      meetings: meetingsData.filter(m => new Date(m.meeting_date) >= startDate).length,
-      revenue: salesData.filter(s => new Date(s.sale_date) >= startDate)
-                       .reduce((sum, s) => sum + (s.sale_amount || 0), 0)
+      cp_onboarding: safeCps.filter(cp => cp?.onboard_date && new Date(cp.onboard_date) >= startDate).length,
+      active_cp: new Set(safeSales.filter(s => s?.sale_date && new Date(s.sale_date) >= startDate).map(s => s?.cp_id).filter(id => id)).size,
+      meetings: safeMeetings.filter(m => m?.meeting_date && new Date(m.meeting_date) >= startDate).length,
+      revenue: safeSales.filter(s => s?.sale_date && new Date(s.sale_date) >= startDate)
+                       .reduce((sum, s) => sum + (s?.sale_amount || 0), 0)
     };
     
     // Calculate percentages
@@ -458,13 +502,13 @@ function AdminDashboard() {
     const daysElapsed = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24));
     const totalDays = range === 'today' ? 1 : range === 'week' ? 7 : 
       new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const daysRemaining = totalDays - daysElapsed;
+    const daysRemaining = Math.max(0, totalDays - daysElapsed);
     
     const requiredDaily = {
-      cp_onboarding: (teamTargets.cp_onboarding - teamAchievements.cp_onboarding) / Math.max(1, daysRemaining),
-      active_cp: (teamTargets.active_cp - teamAchievements.active_cp) / Math.max(1, daysRemaining),
-      meetings: (teamTargets.meetings - teamAchievements.meetings) / Math.max(1, daysRemaining),
-      revenue: (teamTargets.revenue - teamAchievements.revenue) / Math.max(1, daysRemaining)
+      cp_onboarding: daysRemaining > 0 ? (teamTargets.cp_onboarding - teamAchievements.cp_onboarding) / daysRemaining : 0,
+      active_cp: daysRemaining > 0 ? (teamTargets.active_cp - teamAchievements.active_cp) / daysRemaining : 0,
+      meetings: daysRemaining > 0 ? (teamTargets.meetings - teamAchievements.meetings) / daysRemaining : 0,
+      revenue: daysRemaining > 0 ? (teamTargets.revenue - teamAchievements.revenue) / daysRemaining : 0
     };
     
     // Predict end of period values
@@ -531,8 +575,12 @@ function AdminDashboard() {
   const handleDelete = async (type, id) => {
     if (!window.confirm(`Are you sure you want to delete this ${type}?`)) return;
     try {
-      await fetch(`${API_URL}/${type}/${id}`, { method: 'DELETE' });
-      loadAllData();
+      const response = await fetch(`${API_URL}/${type}/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        await loadAllData();
+      } else {
+        alert('Failed to delete');
+      }
     } catch (err) {
       console.error('Error deleting:', err);
       alert('Error deleting item');
@@ -549,11 +597,11 @@ function AdminDashboard() {
   const handleEditRM = (rm) => {
     setEditingItem(rm);
     setRmForm({
-      name: rm.name,
-      phone: rm.phone,
-      email: rm.email,
+      name: rm?.name || '',
+      phone: rm?.phone || '',
+      email: rm?.email || '',
       password: '',
-      status: rm.status
+      status: rm?.status || 'active'
     });
     setShowRMModal(true);
   };
@@ -597,7 +645,7 @@ function AdminDashboard() {
       operating_markets: '',
       industry: '',
       expected_monthly_business: '',
-      rm_id: rms.length > 0 ? rms[0].id : '',
+      rm_id: rms.length > 0 ? rms[0]?.id || '' : '',
       status: 'active',
       onboard_date: new Date().toISOString().split('T')[0]
     });
@@ -607,17 +655,17 @@ function AdminDashboard() {
   const handleEditCP = (cp) => {
     setEditingItem(cp);
     setCpForm({
-      cp_name: cp.cp_name,
-      phone: cp.phone,
-      email: cp.email || '',
-      address: cp.address || '',
-      cp_type: cp.cp_type,
-      operating_markets: cp.operating_markets || '',
-      industry: cp.industry || '',
-      expected_monthly_business: cp.expected_monthly_business || '',
-      rm_id: cp.rm_id,
-      status: cp.status,
-      onboard_date: cp.onboard_date || new Date().toISOString().split('T')[0]
+      cp_name: cp?.cp_name || '',
+      phone: cp?.phone || '',
+      email: cp?.email || '',
+      address: cp?.address || '',
+      cp_type: cp?.cp_type || 'individual',
+      operating_markets: cp?.operating_markets || '',
+      industry: cp?.industry || '',
+      expected_monthly_business: cp?.expected_monthly_business || '',
+      rm_id: cp?.rm_id || '',
+      status: cp?.status || 'active',
+      onboard_date: cp?.onboard_date || new Date().toISOString().split('T')[0]
     });
     setShowCPModal(true);
   };
@@ -652,9 +700,9 @@ function AdminDashboard() {
   // Transfer CP Handler
   const handleOpenTransferCP = (cp) => {
     setTransferCPForm({
-      cp_id: cp.id,
-      from_rm_id: cp.rm_id,
-      to_rm_id: cp.rm_id
+      cp_id: cp?.id,
+      from_rm_id: cp?.rm_id,
+      to_rm_id: cp?.rm_id
     });
     setShowTransferCPModal(true);
   };
@@ -692,8 +740,8 @@ function AdminDashboard() {
   const handleAddSale = () => {
     setEditingItem(null);
     setSalesForm({
-      rm_id: rms.length > 0 ? rms[0].id : '',
-      cp_id: cps.length > 0 ? cps[0].id : '',
+      rm_id: rms.length > 0 ? rms[0]?.id || '' : '',
+      cp_id: cps.length > 0 ? cps[0]?.id || '' : '',
       applicant_name: '',
       applicant_phone: '',
       applicant_email: '',
@@ -719,26 +767,26 @@ function AdminDashboard() {
   const handleEditSale = (sale) => {
     setEditingItem(sale);
     setSalesForm({
-      rm_id: sale.rm_id,
-      cp_id: sale.cp_id,
-      applicant_name: sale.applicant_name || '',
-      applicant_phone: sale.applicant_phone || '',
-      applicant_email: sale.applicant_email || '',
-      project_name: sale.project_name || '',
-      plot_number: sale.plot_number || '',
-      plot_size: sale.plot_size || '',
-      plot_value: sale.plot_value || '',
-      booking_amount_paid: sale.booking_amount_paid || '',
-      booking_date: sale.booking_date || new Date().toISOString().split('T')[0],
-      sale_date: sale.sale_date || new Date().toISOString().split('T')[0],
-      sale_amount: sale.sale_amount || '',
-      payment_status: sale.payment_status || 'pending',
-      due_date: sale.due_date || '',
-      due_date_options: sale.due_date_options || '30 days',
-      discount_amount: sale.discount_amount || 0,
-      tax_amount: sale.tax_amount || 0,
-      invoice_number: sale.invoice_number || '',
-      notes: sale.notes || ''
+      rm_id: sale?.rm_id || '',
+      cp_id: sale?.cp_id || '',
+      applicant_name: sale?.applicant_name || '',
+      applicant_phone: sale?.applicant_phone || '',
+      applicant_email: sale?.applicant_email || '',
+      project_name: sale?.project_name || '',
+      plot_number: sale?.plot_number || '',
+      plot_size: sale?.plot_size || '',
+      plot_value: sale?.plot_value || '',
+      booking_amount_paid: sale?.booking_amount_paid || '',
+      booking_date: sale?.booking_date || new Date().toISOString().split('T')[0],
+      sale_date: sale?.sale_date || new Date().toISOString().split('T')[0],
+      sale_amount: sale?.sale_amount || '',
+      payment_status: sale?.payment_status || 'pending',
+      due_date: sale?.due_date || '',
+      due_date_options: sale?.due_date_options || '30 days',
+      discount_amount: sale?.discount_amount || 0,
+      tax_amount: sale?.tax_amount || 0,
+      invoice_number: sale?.invoice_number || '',
+      notes: sale?.notes || ''
     });
     setShowSalesModal(true);
   };
@@ -756,8 +804,8 @@ function AdminDashboard() {
       const saleData = {
         ...salesForm,
         sale_amount: saleAmount,
-        rm_id: parseInt(salesForm.rm_id),
-        cp_id: parseInt(salesForm.cp_id),
+        rm_id: parseInt(salesForm.rm_id) || 0,
+        cp_id: parseInt(salesForm.cp_id) || 0,
         plot_value: parseFloat(salesForm.plot_value) || 0,
         plot_size: parseFloat(salesForm.plot_size) || 0,
         booking_amount_paid: parseFloat(salesForm.booking_amount_paid) || 0,
@@ -789,9 +837,9 @@ function AdminDashboard() {
   // Transfer Sale Handler
   const handleOpenTransferSale = (sale) => {
     setTransferSalesForm({
-      sale_id: sale.id,
-      from_cp_id: sale.cp_id,
-      to_cp_id: sale.cp_id
+      sale_id: sale?.id,
+      from_cp_id: sale?.cp_id,
+      to_cp_id: sale?.cp_id
     });
     setShowTransferSalesModal(true);
   };
@@ -829,7 +877,7 @@ function AdminDashboard() {
   const handleAddTarget = (rm) => {
     setEditingItem(null);
     setTargetForm({
-      rm_id: rm.id,
+      rm_id: rm?.id || '',
       period: getCurrentPeriod(),
       cp_onboarding_target: '',
       active_cp_target: '',
@@ -857,7 +905,7 @@ function AdminDashboard() {
         'september': 8, 'october': 9, 'november': 10, 'december': 11
       };
       
-      const monthIndex = monthMap[monthName.toLowerCase()];
+      const monthIndex = monthMap[monthName?.toLowerCase()];
       
       if (monthIndex === undefined) {
         throw new Error(`Invalid month name: ${monthName}`);
@@ -1288,9 +1336,9 @@ function AdminDashboard() {
           <div style={styles.attentionCard}>
             <h3>🚨 RMs Needing Attention</h3>
             {teamStats.needsAttention.map(rm => (
-              <div key={rm.id} style={styles.attentionItem}>
-                <span>{rm.name}</span>
-                <span style={styles.attentionScore}>{Math.round(rm.avgPercentage)}%</span>
+              <div key={rm?.id} style={styles.attentionItem}>
+                <span>{rm?.name || 'Unknown'}</span>
+                <span style={styles.attentionScore}>{Math.round(rm?.avgPercentage || 0)}%</span>
               </div>
             ))}
           </div>
@@ -1315,40 +1363,40 @@ function AdminDashboard() {
             <h2 style={styles.sectionTitle}>Individual RM Performance - {getPeriodLabel()}</h2>
             <div style={styles.rmPerformanceGrid}>
               {rmPerformance.map(rm => (
-                <div key={rm.id} style={styles.rmPerformanceCard}>
+                <div key={rm?.id} style={styles.rmPerformanceCard}>
                   <div style={styles.rmCardHeader}>
-                    <span style={styles.rmCardName}>{rm.name}</span>
-                    <span style={{...styles.rmCardStatus, background: rm.status === 'active' ? '#d4edda' : '#f8d7da'}}>
-                      {rm.status}
+                    <span style={styles.rmCardName}>{rm?.name || 'Unknown'}</span>
+                    <span style={{...styles.rmCardStatus, background: rm?.status === 'active' ? '#d4edda' : '#f8d7da'}}>
+                      {rm?.status || 'inactive'}
                     </span>
                   </div>
                   
                   <div style={styles.rmCardStats}>
                     <div style={styles.rmStat}>
                       <span>CPs:</span>
-                      <strong>{rm.achievements.cp_onboarding}</strong>
-                      {rm.targets && <small>/{rm.targets.cp_onboarding_target}</small>}
+                      <strong>{rm?.achievements?.cp_onboarding || 0}</strong>
+                      {rm?.targets && <small>/{rm.targets.cp_onboarding_target || 0}</small>}
                     </div>
                     <div style={styles.rmStat}>
                       <span>Active:</span>
-                      <strong>{rm.achievements.active_cp}</strong>
-                      {rm.targets && <small>/{rm.targets.active_cp_target}</small>}
+                      <strong>{rm?.achievements?.active_cp || 0}</strong>
+                      {rm?.targets && <small>/{rm.targets.active_cp_target || 0}</small>}
                     </div>
                     <div style={styles.rmStat}>
                       <span>Meetings:</span>
-                      <strong>{rm.achievements.meetings}</strong>
-                      {rm.targets && <small>/{rm.targets.meetings_target}</small>}
+                      <strong>{rm?.achievements?.meetings || 0}</strong>
+                      {rm?.targets && <small>/{rm.targets.meetings_target || 0}</small>}
                     </div>
                     <div style={styles.rmStat}>
                       <span>Revenue:</span>
-                      <strong>{formatCurrency(rm.achievements.revenue)}</strong>
-                      {rm.targets && <small>/{formatCurrency(rm.targets.revenue_target)}</small>}
+                      <strong>{formatCurrency(rm?.achievements?.revenue || 0)}</strong>
+                      {rm?.targets && <small>/{formatCurrency(rm.targets.revenue_target || 0)}</small>}
                     </div>
                   </div>
                   
                   <div style={styles.rmCardFooter}>
-                    <span style={styles.rmProgress}>{Math.round(rm.avgPercentage)}% achieved</span>
-                    <span style={styles.rmStatus}>{rm.status}</span>
+                    <span style={styles.rmProgress}>{Math.round(rm?.avgPercentage || 0)}% achieved</span>
+                    <span style={styles.rmStatus}>{rm?.status || 'inactive'}</span>
                   </div>
                 </div>
               ))}
@@ -1379,20 +1427,20 @@ function AdminDashboard() {
               </thead>
               <tbody>
                 {rms.map(rm => (
-                  <tr key={rm.id}>
-                    <td>{rm.id}</td>
-                    <td>{rm.name}</td>
-                    <td>{rm.phone}</td>
-                    <td>{rm.email}</td>
+                  <tr key={rm?.id}>
+                    <td>{rm?.id}</td>
+                    <td>{rm?.name}</td>
+                    <td>{rm?.phone}</td>
+                    <td>{rm?.email}</td>
                     <td>
-                      <span style={{...styles.badge, background: rm.status === 'active' ? '#d4edda' : '#f8d7da'}}>
-                        {rm.status}
+                      <span style={{...styles.badge, background: rm?.status === 'active' ? '#d4edda' : '#f8d7da'}}>
+                        {rm?.status}
                       </span>
                     </td>
                     <td>
                       <button onClick={() => handleEditRM(rm)} style={styles.editBtn} title="Edit">✏️</button>
                       <button onClick={() => handleAddTarget(rm)} style={styles.targetBtn} title="Set Target">🎯</button>
-                      <button onClick={() => handleDelete('rms', rm.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
+                      <button onClick={() => handleDelete('rms', rm?.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
                     </td>
                   </tr>
                 ))}
@@ -1419,17 +1467,17 @@ function AdminDashboard() {
               </thead>
               <tbody>
                 {targets.map(target => {
-                  const rm = rms.find(r => String(r.id) === String(target.rm_id));
+                  const rm = rms.find(r => String(r?.id) === String(target?.rm_id));
                   return (
-                    <tr key={target.id}>
-                      <td>{rm?.name || target.rm_id}</td>
-                      <td>{target.period}</td>
-                      <td>{target.cp_onboarding_target}</td>
-                      <td>{target.active_cp_target}</td>
-                      <td>{target.meetings_target}</td>
-                      <td>{formatCurrency(target.revenue_target)}</td>
+                    <tr key={target?.id}>
+                      <td>{rm?.name || target?.rm_id}</td>
+                      <td>{target?.period}</td>
+                      <td>{target?.cp_onboarding_target}</td>
+                      <td>{target?.active_cp_target}</td>
+                      <td>{target?.meetings_target}</td>
+                      <td>{formatCurrency(target?.revenue_target || 0)}</td>
                       <td>
-                        <button onClick={() => handleDelete('targets', target.id)} style={styles.deleteBtn}>🗑️</button>
+                        <button onClick={() => handleDelete('targets', target?.id)} style={styles.deleteBtn}>🗑️</button>
                       </td>
                     </tr>
                   );
@@ -1463,23 +1511,23 @@ function AdminDashboard() {
               </thead>
               <tbody>
                 {cps.map(cp => {
-                  const rm = rms.find(r => String(r.id) === String(cp.rm_id));
+                  const rm = rms.find(r => String(r?.id) === String(cp?.rm_id));
                   return (
-                    <tr key={cp.id}>
-                      <td>{cp.id}</td>
-                      <td>{cp.cp_name}</td>
-                      <td>{cp.phone}</td>
-                      <td>{rm?.name || cp.rm_id}</td>
-                      <td>{cp.cp_type}</td>
+                    <tr key={cp?.id}>
+                      <td>{cp?.id}</td>
+                      <td>{cp?.cp_name}</td>
+                      <td>{cp?.phone}</td>
+                      <td>{rm?.name || cp?.rm_id}</td>
+                      <td>{cp?.cp_type}</td>
                       <td>
-                        <span style={{...styles.badge, background: cp.status === 'active' ? '#d4edda' : '#f8d7da'}}>
-                          {cp.status}
+                        <span style={{...styles.badge, background: cp?.status === 'active' ? '#d4edda' : '#f8d7da'}}>
+                          {cp?.status}
                         </span>
                       </td>
                       <td>
                         <button onClick={() => handleEditCP(cp)} style={styles.editBtn} title="Edit">✏️</button>
                         <button onClick={() => handleOpenTransferCP(cp)} style={styles.transferBtn} title="Transfer to another RM">🔄</button>
-                        <button onClick={() => handleDelete('channel_partners', cp.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
+                        <button onClick={() => handleDelete('channel_partners', cp?.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
                       </td>
                     </tr>
                   );
@@ -1514,25 +1562,25 @@ function AdminDashboard() {
               </thead>
               <tbody>
                 {sales.map(sale => {
-                  const rm = rms.find(r => String(r.id) === String(sale.rm_id));
-                  const cp = cps.find(c => String(c.id) === String(sale.cp_id));
+                  const rm = rms.find(r => String(r?.id) === String(sale?.rm_id));
+                  const cp = cps.find(c => String(c?.id) === String(sale?.cp_id));
                   return (
-                    <tr key={sale.id}>
-                      <td>{sale.id}</td>
-                      <td>{rm?.name || sale.rm_id}</td>
-                      <td>{cp?.cp_name || sale.cp_id}</td>
-                      <td>{sale.applicant_name}</td>
-                      <td>{formatCurrency(sale.sale_amount)}</td>
-                      <td>{new Date(sale.sale_date).toLocaleDateString()}</td>
+                    <tr key={sale?.id}>
+                      <td>{sale?.id}</td>
+                      <td>{rm?.name || sale?.rm_id}</td>
+                      <td>{cp?.cp_name || sale?.cp_id}</td>
+                      <td>{sale?.applicant_name}</td>
+                      <td>{formatCurrency(sale?.sale_amount || 0)}</td>
+                      <td>{sale?.sale_date ? new Date(sale.sale_date).toLocaleDateString() : ''}</td>
                       <td>
-                        <span style={{...styles.badge, background: sale.payment_status === 'completed' ? '#d4edda' : '#fff3cd'}}>
-                          {sale.payment_status}
+                        <span style={{...styles.badge, background: sale?.payment_status === 'completed' ? '#d4edda' : '#fff3cd'}}>
+                          {sale?.payment_status}
                         </span>
                       </td>
                       <td>
                         <button onClick={() => handleEditSale(sale)} style={styles.editBtn} title="Edit">✏️</button>
                         <button onClick={() => handleOpenTransferSale(sale)} style={styles.transferBtn} title="Transfer to another CP">🔄</button>
-                        <button onClick={() => handleDelete('sales', sale.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
+                        <button onClick={() => handleDelete('sales', sale?.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
                       </td>
                     </tr>
                   );
@@ -1559,17 +1607,17 @@ function AdminDashboard() {
               </thead>
               <tbody>
                 {meetings.map(meeting => {
-                  const rm = rms.find(r => String(r.id) === String(meeting.rm_id));
-                  const cp = cps.find(c => String(c.id) === String(meeting.cp_id));
+                  const rm = rms.find(r => String(r?.id) === String(meeting?.rm_id));
+                  const cp = cps.find(c => String(c?.id) === String(meeting?.cp_id));
                   return (
-                    <tr key={meeting.id}>
-                      <td>{meeting.id}</td>
-                      <td>{rm?.name || meeting.rm_id}</td>
-                      <td>{cp?.cp_name || meeting.cp_id}</td>
-                      <td>{new Date(meeting.meeting_date).toLocaleDateString()}</td>
-                      <td>{meeting.outcome}</td>
+                    <tr key={meeting?.id}>
+                      <td>{meeting?.id}</td>
+                      <td>{rm?.name || meeting?.rm_id}</td>
+                      <td>{cp?.cp_name || meeting?.cp_id}</td>
+                      <td>{meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString() : ''}</td>
+                      <td>{meeting?.outcome}</td>
                       <td>
-                        <button onClick={() => handleDelete('meetings', meeting.id)} style={styles.deleteBtn}>🗑️</button>
+                        <button onClick={() => handleDelete('meetings', meeting?.id)} style={styles.deleteBtn}>🗑️</button>
                       </td>
                     </tr>
                   );
@@ -1586,11 +1634,11 @@ function AdminDashboard() {
           <div style={styles.modalContent}>
             <h3>{editingItem ? 'Edit RM' : 'Add New RM'}</h3>
             <form onSubmit={handleRMSave}>
-              <input type="text" placeholder="Name" value={rmForm.name} onChange={(e) => setRmForm({...rmForm, name: e.target.value})} required style={styles.modalInput} />
-              <input type="tel" placeholder="Phone" value={rmForm.phone} onChange={(e) => setRmForm({...rmForm, phone: e.target.value})} required style={styles.modalInput} />
-              <input type="email" placeholder="Email" value={rmForm.email} onChange={(e) => setRmForm({...rmForm, email: e.target.value})} required style={styles.modalInput} />
-              <input type="password" placeholder="Password" value={rmForm.password} onChange={(e) => setRmForm({...rmForm, password: e.target.value})} required={!editingItem} style={styles.modalInput} />
-              <select value={rmForm.status} onChange={(e) => setRmForm({...rmForm, status: e.target.value})} style={styles.modalInput}>
+              <input type="text" placeholder="Name" value={rmForm.name || ''} onChange={(e) => setRmForm({...rmForm, name: e.target.value})} required style={styles.modalInput} />
+              <input type="tel" placeholder="Phone" value={rmForm.phone || ''} onChange={(e) => setRmForm({...rmForm, phone: e.target.value})} required style={styles.modalInput} />
+              <input type="email" placeholder="Email" value={rmForm.email || ''} onChange={(e) => setRmForm({...rmForm, email: e.target.value})} required style={styles.modalInput} />
+              <input type="password" placeholder="Password" value={rmForm.password || ''} onChange={(e) => setRmForm({...rmForm, password: e.target.value})} required={!editingItem} style={styles.modalInput} />
+              <select value={rmForm.status || 'active'} onChange={(e) => setRmForm({...rmForm, status: e.target.value})} style={styles.modalInput}>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
@@ -1609,23 +1657,23 @@ function AdminDashboard() {
           <div style={styles.modalContent}>
             <h3>{editingItem ? 'Edit CP' : 'Add New CP'}</h3>
             <form onSubmit={handleCPSave}>
-              <input type="text" placeholder="CP Name" value={cpForm.cp_name} onChange={(e) => setCpForm({...cpForm, cp_name: e.target.value})} required style={styles.modalInput} />
-              <input type="tel" placeholder="Phone" value={cpForm.phone} onChange={(e) => setCpForm({...cpForm, phone: e.target.value})} required style={styles.modalInput} />
-              <input type="email" placeholder="Email" value={cpForm.email} onChange={(e) => setCpForm({...cpForm, email: e.target.value})} style={styles.modalInput} />
-              <input type="text" placeholder="Address" value={cpForm.address} onChange={(e) => setCpForm({...cpForm, address: e.target.value})} style={styles.modalInput} />
-              <select value={cpForm.cp_type} onChange={(e) => setCpForm({...cpForm, cp_type: e.target.value})} style={styles.modalInput}>
+              <input type="text" placeholder="CP Name" value={cpForm.cp_name || ''} onChange={(e) => setCpForm({...cpForm, cp_name: e.target.value})} required style={styles.modalInput} />
+              <input type="tel" placeholder="Phone" value={cpForm.phone || ''} onChange={(e) => setCpForm({...cpForm, phone: e.target.value})} required style={styles.modalInput} />
+              <input type="email" placeholder="Email" value={cpForm.email || ''} onChange={(e) => setCpForm({...cpForm, email: e.target.value})} style={styles.modalInput} />
+              <input type="text" placeholder="Address" value={cpForm.address || ''} onChange={(e) => setCpForm({...cpForm, address: e.target.value})} style={styles.modalInput} />
+              <select value={cpForm.cp_type || 'individual'} onChange={(e) => setCpForm({...cpForm, cp_type: e.target.value})} style={styles.modalInput}>
                 <option value="individual">Individual</option>
                 <option value="company">Company</option>
               </select>
-              <input type="text" placeholder="Operating Markets" value={cpForm.operating_markets} onChange={(e) => setCpForm({...cpForm, operating_markets: e.target.value})} style={styles.modalInput} />
-              <input type="text" placeholder="Industry" value={cpForm.industry} onChange={(e) => setCpForm({...cpForm, industry: e.target.value})} style={styles.modalInput} />
-              <input type="number" placeholder="Expected Monthly Business" value={cpForm.expected_monthly_business} onChange={(e) => setCpForm({...cpForm, expected_monthly_business: e.target.value})} style={styles.modalInput} />
-              <input type="date" placeholder="Onboard Date" value={cpForm.onboard_date} onChange={(e) => setCpForm({...cpForm, onboard_date: e.target.value})} style={styles.modalInput} />
-              <select value={cpForm.rm_id} onChange={(e) => setCpForm({...cpForm, rm_id: e.target.value})} required style={styles.modalInput}>
+              <input type="text" placeholder="Operating Markets" value={cpForm.operating_markets || ''} onChange={(e) => setCpForm({...cpForm, operating_markets: e.target.value})} style={styles.modalInput} />
+              <input type="text" placeholder="Industry" value={cpForm.industry || ''} onChange={(e) => setCpForm({...cpForm, industry: e.target.value})} style={styles.modalInput} />
+              <input type="number" placeholder="Expected Monthly Business" value={cpForm.expected_monthly_business || ''} onChange={(e) => setCpForm({...cpForm, expected_monthly_business: e.target.value})} style={styles.modalInput} />
+              <input type="date" placeholder="Onboard Date" value={cpForm.onboard_date || new Date().toISOString().split('T')[0]} onChange={(e) => setCpForm({...cpForm, onboard_date: e.target.value})} style={styles.modalInput} />
+              <select value={cpForm.rm_id || ''} onChange={(e) => setCpForm({...cpForm, rm_id: e.target.value})} required style={styles.modalInput}>
                 <option value="">Select RM</option>
-                {rms.map(rm => <option key={rm.id} value={rm.id}>{rm.name}</option>)}
+                {rms.map(rm => <option key={rm?.id} value={rm?.id}>{rm?.name}</option>)}
               </select>
-              <select value={cpForm.status} onChange={(e) => setCpForm({...cpForm, status: e.target.value})} style={styles.modalInput}>
+              <select value={cpForm.status || 'active'} onChange={(e) => setCpForm({...cpForm, status: e.target.value})} style={styles.modalInput}>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
@@ -1644,16 +1692,16 @@ function AdminDashboard() {
           <div style={styles.modalContent}>
             <h3>Transfer Channel Partner to Another RM</h3>
             <form onSubmit={handleTransferCP}>
-              <p><strong>From RM:</strong> {rms.find(r => r.id === transferCPForm.from_rm_id)?.name}</p>
+              <p><strong>From RM:</strong> {rms.find(r => r?.id === transferCPForm.from_rm_id)?.name}</p>
               <select
-                value={transferCPForm.to_rm_id}
+                value={transferCPForm.to_rm_id || ''}
                 onChange={(e) => setTransferCPForm({...transferCPForm, to_rm_id: parseInt(e.target.value)})}
                 required
                 style={styles.modalInput}
               >
                 <option value="">Select Target RM</option>
-                {rms.filter(rm => rm.id !== transferCPForm.from_rm_id).map(rm => (
-                  <option key={rm.id} value={rm.id}>{rm.name}</option>
+                {rms.filter(rm => rm?.id !== transferCPForm.from_rm_id).map(rm => (
+                  <option key={rm?.id} value={rm?.id}>{rm?.name}</option>
                 ))}
               </select>
               <div style={styles.modalActions}>
@@ -1672,48 +1720,48 @@ function AdminDashboard() {
             <h3>{editingItem ? 'Edit Sale' : 'Add New Sale'}</h3>
             <form onSubmit={handleSaleSave}>
               <select
-                value={salesForm.rm_id}
+                value={salesForm.rm_id || ''}
                 onChange={(e) => setSalesForm({...salesForm, rm_id: parseInt(e.target.value)})}
                 required
                 style={styles.modalInput}
               >
                 <option value="">Select RM</option>
-                {rms.map(rm => <option key={rm.id} value={rm.id}>{rm.name}</option>)}
+                {rms.map(rm => <option key={rm?.id} value={rm?.id}>{rm?.name}</option>)}
               </select>
               
               <select
-                value={salesForm.cp_id}
+                value={salesForm.cp_id || ''}
                 onChange={(e) => setSalesForm({...salesForm, cp_id: parseInt(e.target.value)})}
                 required
                 style={styles.modalInput}
               >
                 <option value="">Select CP</option>
-                {cps.map(cp => <option key={cp.id} value={cp.id}>{cp.cp_name}</option>)}
+                {cps.map(cp => <option key={cp?.id} value={cp?.id}>{cp?.cp_name}</option>)}
               </select>
               
-              <input type="text" placeholder="Applicant Name" value={salesForm.applicant_name} onChange={(e) => setSalesForm({...salesForm, applicant_name: e.target.value})} required style={styles.modalInput} />
-              <input type="tel" placeholder="Applicant Phone" value={salesForm.applicant_phone} onChange={(e) => setSalesForm({...salesForm, applicant_phone: e.target.value})} style={styles.modalInput} />
-              <input type="email" placeholder="Applicant Email" value={salesForm.applicant_email} onChange={(e) => setSalesForm({...salesForm, applicant_email: e.target.value})} style={styles.modalInput} />
-              <input type="text" placeholder="Project Name" value={salesForm.project_name} onChange={(e) => setSalesForm({...salesForm, project_name: e.target.value})} style={styles.modalInput} />
-              <input type="text" placeholder="Plot Number" value={salesForm.plot_number} onChange={(e) => setSalesForm({...salesForm, plot_number: e.target.value})} style={styles.modalInput} />
-              <input type="number" placeholder="Plot Size (sq ft)" value={salesForm.plot_size} onChange={(e) => setSalesForm({...salesForm, plot_size: e.target.value})} style={styles.modalInput} />
-              <input type="number" placeholder="Plot Value" value={salesForm.plot_value} onChange={(e) => setSalesForm({...salesForm, plot_value: e.target.value})} style={styles.modalInput} />
-              <input type="number" placeholder="Booking Amount Paid" value={salesForm.booking_amount_paid} onChange={(e) => setSalesForm({...salesForm, booking_amount_paid: e.target.value})} style={styles.modalInput} />
-              <input type="date" placeholder="Booking Date" value={salesForm.booking_date} onChange={(e) => setSalesForm({...salesForm, booking_date: e.target.value})} style={styles.modalInput} />
-              <input type="date" placeholder="Sale Date" value={salesForm.sale_date} onChange={(e) => setSalesForm({...salesForm, sale_date: e.target.value})} required style={styles.modalInput} />
-              <input type="number" placeholder="Sale Amount" value={salesForm.sale_amount} onChange={(e) => setSalesForm({...salesForm, sale_amount: e.target.value})} required style={styles.modalInput} />
+              <input type="text" placeholder="Applicant Name" value={salesForm.applicant_name || ''} onChange={(e) => setSalesForm({...salesForm, applicant_name: e.target.value})} required style={styles.modalInput} />
+              <input type="tel" placeholder="Applicant Phone" value={salesForm.applicant_phone || ''} onChange={(e) => setSalesForm({...salesForm, applicant_phone: e.target.value})} style={styles.modalInput} />
+              <input type="email" placeholder="Applicant Email" value={salesForm.applicant_email || ''} onChange={(e) => setSalesForm({...salesForm, applicant_email: e.target.value})} style={styles.modalInput} />
+              <input type="text" placeholder="Project Name" value={salesForm.project_name || ''} onChange={(e) => setSalesForm({...salesForm, project_name: e.target.value})} style={styles.modalInput} />
+              <input type="text" placeholder="Plot Number" value={salesForm.plot_number || ''} onChange={(e) => setSalesForm({...salesForm, plot_number: e.target.value})} style={styles.modalInput} />
+              <input type="number" placeholder="Plot Size (sq ft)" value={salesForm.plot_size || ''} onChange={(e) => setSalesForm({...salesForm, plot_size: e.target.value})} style={styles.modalInput} />
+              <input type="number" placeholder="Plot Value" value={salesForm.plot_value || ''} onChange={(e) => setSalesForm({...salesForm, plot_value: e.target.value})} style={styles.modalInput} />
+              <input type="number" placeholder="Booking Amount Paid" value={salesForm.booking_amount_paid || ''} onChange={(e) => setSalesForm({...salesForm, booking_amount_paid: e.target.value})} style={styles.modalInput} />
+              <input type="date" placeholder="Booking Date" value={salesForm.booking_date || new Date().toISOString().split('T')[0]} onChange={(e) => setSalesForm({...salesForm, booking_date: e.target.value})} style={styles.modalInput} />
+              <input type="date" placeholder="Sale Date" value={salesForm.sale_date || new Date().toISOString().split('T')[0]} onChange={(e) => setSalesForm({...salesForm, sale_date: e.target.value})} required style={styles.modalInput} />
+              <input type="number" placeholder="Sale Amount" value={salesForm.sale_amount || ''} onChange={(e) => setSalesForm({...salesForm, sale_amount: e.target.value})} required style={styles.modalInput} />
               
-              <select value={salesForm.payment_status} onChange={(e) => setSalesForm({...salesForm, payment_status: e.target.value})} style={styles.modalInput}>
+              <select value={salesForm.payment_status || 'pending'} onChange={(e) => setSalesForm({...salesForm, payment_status: e.target.value})} style={styles.modalInput}>
                 <option value="pending">Pending</option>
                 <option value="partial">Partial</option>
                 <option value="completed">Completed</option>
                 <option value="refunded">Refunded</option>
               </select>
               
-              <input type="text" placeholder="Invoice Number" value={salesForm.invoice_number} onChange={(e) => setSalesForm({...salesForm, invoice_number: e.target.value})} style={styles.modalInput} />
-              <input type="number" placeholder="Discount Amount" value={salesForm.discount_amount} onChange={(e) => setSalesForm({...salesForm, discount_amount: e.target.value})} style={styles.modalInput} />
-              <input type="number" placeholder="Tax Amount" value={salesForm.tax_amount} onChange={(e) => setSalesForm({...salesForm, tax_amount: e.target.value})} style={styles.modalInput} />
-              <textarea placeholder="Notes" value={salesForm.notes} onChange={(e) => setSalesForm({...salesForm, notes: e.target.value})} style={styles.modalInput} rows="3" />
+              <input type="text" placeholder="Invoice Number" value={salesForm.invoice_number || ''} onChange={(e) => setSalesForm({...salesForm, invoice_number: e.target.value})} style={styles.modalInput} />
+              <input type="number" placeholder="Discount Amount" value={salesForm.discount_amount || 0} onChange={(e) => setSalesForm({...salesForm, discount_amount: parseFloat(e.target.value)})} style={styles.modalInput} />
+              <input type="number" placeholder="Tax Amount" value={salesForm.tax_amount || 0} onChange={(e) => setSalesForm({...salesForm, tax_amount: parseFloat(e.target.value)})} style={styles.modalInput} />
+              <textarea placeholder="Notes" value={salesForm.notes || ''} onChange={(e) => setSalesForm({...salesForm, notes: e.target.value})} style={styles.modalInput} rows="3" />
               
               <div style={styles.modalActions}>
                 <button type="button" onClick={() => setShowSalesModal(false)} style={styles.modalCancel}>Cancel</button>
@@ -1730,16 +1778,16 @@ function AdminDashboard() {
           <div style={styles.modalContent}>
             <h3>Transfer Sale to Another CP</h3>
             <form onSubmit={handleTransferSale}>
-              <p><strong>From CP:</strong> {cps.find(c => c.id === transferSalesForm.from_cp_id)?.cp_name}</p>
+              <p><strong>From CP:</strong> {cps.find(c => c?.id === transferSalesForm.from_cp_id)?.cp_name}</p>
               <select
-                value={transferSalesForm.to_cp_id}
+                value={transferSalesForm.to_cp_id || ''}
                 onChange={(e) => setTransferSalesForm({...transferSalesForm, to_cp_id: parseInt(e.target.value)})}
                 required
                 style={styles.modalInput}
               >
                 <option value="">Select Target CP</option>
-                {cps.filter(cp => cp.id !== transferSalesForm.from_cp_id).map(cp => (
-                  <option key={cp.id} value={cp.id}>{cp.cp_name}</option>
+                {cps.filter(cp => cp?.id !== transferSalesForm.from_cp_id).map(cp => (
+                  <option key={cp?.id} value={cp?.id}>{cp?.cp_name}</option>
                 ))}
               </select>
               <div style={styles.modalActions}>
@@ -1760,7 +1808,7 @@ function AdminDashboard() {
               <input
                 type="text"
                 placeholder="Period (e.g., march-2026)"
-                value={targetForm.period}
+                value={targetForm.period || ''}
                 onChange={(e) => setTargetForm({...targetForm, period: e.target.value})}
                 required
                 style={styles.modalInput}
@@ -1768,7 +1816,7 @@ function AdminDashboard() {
               <input
                 type="number"
                 placeholder="CP Onboarding Target"
-                value={targetForm.cp_onboarding_target}
+                value={targetForm.cp_onboarding_target || ''}
                 onChange={(e) => setTargetForm({...targetForm, cp_onboarding_target: e.target.value})}
                 required
                 style={styles.modalInput}
@@ -1776,7 +1824,7 @@ function AdminDashboard() {
               <input
                 type="number"
                 placeholder="Active CP Target"
-                value={targetForm.active_cp_target}
+                value={targetForm.active_cp_target || ''}
                 onChange={(e) => setTargetForm({...targetForm, active_cp_target: e.target.value})}
                 required
                 style={styles.modalInput}
@@ -1784,7 +1832,7 @@ function AdminDashboard() {
               <input
                 type="number"
                 placeholder="Meetings Target"
-                value={targetForm.meetings_target}
+                value={targetForm.meetings_target || ''}
                 onChange={(e) => setTargetForm({...targetForm, meetings_target: e.target.value})}
                 required
                 style={styles.modalInput}
@@ -1792,7 +1840,7 @@ function AdminDashboard() {
               <input
                 type="number"
                 placeholder="Revenue Target (₹)"
-                value={targetForm.revenue_target}
+                value={targetForm.revenue_target || ''}
                 onChange={(e) => setTargetForm({...targetForm, revenue_target: e.target.value})}
                 required
                 style={styles.modalInput}
