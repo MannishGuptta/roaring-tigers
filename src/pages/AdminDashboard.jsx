@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+// At the top of the file, right after imports
+console.log('AdminDashboard.jsx loaded');
 
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -15,7 +17,7 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Modal states (keep all existing modal states)
+  // Modal states
   const [showRMModal, setShowRMModal] = useState(false);
   const [showCPModal, setShowCPModal] = useState(false);
   const [showTargetModal, setShowTargetModal] = useState(false);
@@ -29,7 +31,7 @@ function AdminDashboard() {
     password: '',
     status: 'active'
   });
-  
+
   const [cpForm, setCpForm] = useState({
     cp_name: '',
     phone: '',
@@ -42,7 +44,7 @@ function AdminDashboard() {
     rm_id: '',
     status: 'active'
   });
-  
+
   const [targetForm, setTargetForm] = useState({
     rm_id: '',
     period: '',
@@ -55,20 +57,35 @@ function AdminDashboard() {
   const navigate = useNavigate();
   const API_URL = 'https://roaring-tigers-backend.onrender.com';
 
-  // Logout function - placed here for proper scope
+  // ============= HANDLER FUNCTIONS =============
   const handleLogout = () => {
     sessionStorage.removeItem('admin');
     navigate('/admin');
   };
 
-  useEffect(() => {
-    const admin = sessionStorage.getItem('admin');
-    if (!admin) {
-      navigate('/admin');
-      return;
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0
+    }).format(amount || 0);
+  };
+
+  const getProgressColor = (percentage) => {
+    if (percentage >= 100) return '#28a745';
+    if (percentage >= 80) return '#ffc107';
+    if (percentage >= 50) return '#fd7e14';
+    return '#dc3545';
+  };
+
+  const getPeriodLabel = () => {
+    switch(timeRange) {
+      case 'today': return 'Today';
+      case 'week': return 'This Week';
+      case 'month': return 'This Month';
+      default: return 'This Month';
     }
-    loadAllData();
-  }, [navigate, timeRange]);
+  };
 
   const getDateRange = (range) => {
     const today = new Date();
@@ -95,19 +112,17 @@ function AdminDashboard() {
     return startDate;
   };
 
-  const getPeriodLabel = () => {
-    switch(timeRange) {
-      case 'today': return 'Today';
-      case 'week': return 'This Week';
-      case 'month': return 'This Month';
-      default: return 'This Month';
-    }
+  const getCurrentPeriod = () => {
+    const date = new Date();
+    const month = date.toLocaleString('default', { month: 'long' }).toLowerCase();
+    const year = date.getFullYear();
+    return `${month}-${year}`;
   };
 
+  // Load all data function
   const loadAllData = async () => {
-    setLoading(true);
-    setError(null);
     try {
+      setLoading(true);
       const [rmsRes, cpsRes, salesRes, meetingsRes, targetsRes] = await Promise.all([
         fetch(`${API_URL}/rms`),
         fetch(`${API_URL}/channel_partners`),
@@ -145,6 +160,16 @@ function AdminDashboard() {
     }
   };
 
+  useEffect(() => {
+    const admin = sessionStorage.getItem('admin');
+    if (!admin) {
+      navigate('/admin');
+      return;
+    }
+    loadAllData();
+  }, [navigate, timeRange]);
+
+  // ============= CALCULATION FUNCTIONS =============
   const calculateRmPerformance = (rmsData, cpsData, salesData, meetingsData, targetsData, range) => {
     const startDate = getDateRange(range);
     
@@ -198,7 +223,7 @@ function AdminDashboard() {
         revenue: rmTarget ? Math.round((achievements.revenue / rmTarget.revenue_target) * 100) : 0
       };
       
-      // Calculate daily targets for remaining days
+      // Calculate remaining days and required daily rates
       const today = new Date();
       const daysElapsed = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24));
       const totalDays = range === 'today' ? 1 : range === 'week' ? 7 : 
@@ -381,16 +406,7 @@ function AdminDashboard() {
     });
   };
 
-  const getCurrentPeriod = () => {
-    const date = new Date();
-  const getCurrentPeriod = () => {
-    const date = new Date();
-    const month = date.toLocaleString('default', { month: 'long' }).toLowerCase();
-    const year = date.getFullYear();
-    return `${month}-${year}`;
-  };
-
-  // CRUD Handlers (keep all existing handlers)
+  // ============= CRUD HANDLERS =============
   const handleDelete = async (type, id) => {
     if (!window.confirm(`Are you sure you want to delete this ${type}?`)) return;
     try {
@@ -444,11 +460,6 @@ function AdminDashboard() {
     }
   };
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('admin');
-    navigate('/admin');
-  };
-
   const handleAddCP = () => {
     setEditingItem(null);
     setCpForm({
@@ -497,18 +508,6 @@ function AdminDashboard() {
   };
 
   const handleAddTarget = (rm) => {
-    setEditingItem(null);
-    setTargetForm({
-      rm_id: rm.id,
-      period: getCurrentPeriod(),
-      cp_onboarding_target: '',
-      active_cp_target: '',
-      meetings_target: '',
-      revenue_target: ''
-    });
-    setShowTargetModal(true);
-  };
-     const handleAddTarget = (rm) => {
     setEditingItem(null);
     setTargetForm({
       rm_id: rm.id,
@@ -588,18 +587,33 @@ function AdminDashboard() {
     }
   };
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('admin');
-    navigate('/admin');
-  };
+  if (loading) {
+    return (
+      <div style={styles.loadingContainer}>
+        <div style={styles.loading}>Loading dashboard...</div>
+      </div>
+    );
+  }
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0
-    }).format(amount || 0);
-  };
+  if (error) {
+    return (
+      <div style={styles.errorContainer}>
+        <h2>Error loading dashboard</h2>
+        <p>{error}</p>
+        <button onClick={loadAllData} style={styles.retryBtn}>Retry</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.container}>
+      {/* Header */}
+      <div style={styles.header}>
+        <div>
+          <h1 style={styles.title}>Admin Dashboard</h1>
+          <p style={styles.subtitle}>Roaring Tigers CRM Management</p>
+        </div>
+        <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
       </div>
 
       {/* Time Range Filter */}
@@ -650,21 +664,21 @@ function AdminDashboard() {
         <div style={styles.statCard}>
           <div style={styles.statIcon}>👥</div>
           <div>
-            <div style={styles.statValue}>{teamStats.totalRMs}</div>
+            <div style={styles.statValue}>{teamStats.totalRMs || 0}</div>
             <div style={styles.statLabel}>Total RMs</div>
           </div>
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>🤝</div>
           <div>
-            <div style={styles.statValue}>{teamStats.totalCPs}</div>
+            <div style={styles.statValue}>{teamStats.totalCPs || 0}</div>
             <div style={styles.statLabel}>Total CPs</div>
           </div>
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>✅</div>
           <div>
-            <div style={styles.statValue}>{teamStats.activeCPs}</div>
+            <div style={styles.statValue}>{teamStats.activeCPs || 0}</div>
             <div style={styles.statLabel}>Active CPs</div>
           </div>
         </div>
@@ -921,7 +935,7 @@ function AdminDashboard() {
         )}
       </div>
 
-      {/* Tabs (keep all existing tabs) */}
+      {/* Tabs */}
       <div style={styles.tabs}>
         <button onClick={() => setActiveTab('overview')} style={{...styles.tab, background: activeTab === 'overview' ? '#3498db' : '#f8f9fa', color: activeTab === 'overview' ? 'white' : '#333'}}>📊 Team Overview</button>
         <button onClick={() => setActiveTab('rms')} style={{...styles.tab, background: activeTab === 'rms' ? '#3498db' : '#f8f9fa', color: activeTab === 'rms' ? 'white' : '#333'}}>👥 RMs ({rms.length})</button>
@@ -931,9 +945,9 @@ function AdminDashboard() {
         <button onClick={() => setActiveTab('meetings')} style={{...styles.tab, background: activeTab === 'meetings' ? '#3498db' : '#f8f9fa', color: activeTab === 'meetings' ? 'white' : '#333'}}>📅 Meetings ({meetings.length})</button>
       </div>
 
-      {/* Content - Keep existing tab content */}
+      {/* Content */}
       <div style={styles.content}>
-        {/* Team Overview Tab - Enhanced with RM performance cards */}
+        {/* Team Overview Tab */}
         {activeTab === 'overview' && (
           <div>
             <h2 style={styles.sectionTitle}>Individual RM Performance - {getPeriodLabel()}</h2>
@@ -980,25 +994,16 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* Keep all other tabs (rms, targets, cps, sales, meetings) exactly as they were */}
+        {/* RMs Tab */}
         {activeTab === 'rms' && (
           <div>
             <div style={styles.tabHeader}>
               <h2 style={styles.sectionTitle}>Relationship Managers</h2>
-<div style={{ display: 'flex', gap: '10px' }}>
-  <button 
-    onClick={loadAllData} 
-    style={{
-      ...styles.addButton,
-      background: '#3498db'
-    }}
-  >
-    🔄 Refresh
-  </button>
-  <button onClick={handleAddRM} style={styles.addButton}>
-    ➕ Add RM
-  </button>
-</div>            </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={loadAllData} style={{...styles.addButton, background: '#3498db'}}>🔄 Refresh</button>
+                <button onClick={handleAddRM} style={styles.addButton}>➕ Add RM</button>
+              </div>
+            </div>
             <table style={styles.table}>
               <thead>
                 <tr>
@@ -1022,52 +1027,7 @@ function AdminDashboard() {
                         {rm.status}
                       </span>
                     </td>
-<td>
-  <button 
-    onClick={() => handleEditRM(rm)} 
-    style={{
-      padding: '5px 10px',
-      margin: '0 5px',
-      border: 'none',
-      borderRadius: '3px',
-      cursor: 'pointer',
-      background: '#ffc107',
-      color: '#333'
-    }}
-    title="Edit"
-  >
-    ✏️
-  </button>
-  <button 
-    onClick={() => handleAddTarget(rm)} 
-    style={{
-      padding: '5px 10px',
-      margin: '0 5px',
-      border: 'none',
-      borderRadius: '3px',
-      cursor: 'pointer',
-      background: '#17a2b8',
-      color: 'white'
-    }}
-    title="Set Target"
-  >
-    🎯
-  </button>
-  <button 
-    onClick={() => handleDelete('rms', rm.id)} 
-    style={{
-      padding: '5px 10px',
-      border: 'none',
-      borderRadius: '3px',
-      cursor: 'pointer',
-      background: '#dc3545',
-      color: 'white'
-    }}
-    title="Delete"
-  >
-    🗑️
-  </button>
-</td>                    <td>
+                    <td>
                       <button onClick={() => handleEditRM(rm)} style={styles.editBtn} title="Edit">✏️</button>
                       <button onClick={() => handleAddTarget(rm)} style={styles.targetBtn} title="Set Target">🎯</button>
                       <button onClick={() => handleDelete('rms', rm.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
@@ -1079,6 +1039,7 @@ function AdminDashboard() {
           </div>
         )}
 
+        {/* Targets Tab */}
         {activeTab === 'targets' && (
           <div>
             <h2 style={styles.sectionTitle}>Monthly Targets</h2>
@@ -1116,6 +1077,7 @@ function AdminDashboard() {
           </div>
         )}
 
+        {/* CPs Tab */}
         {activeTab === 'cps' && (
           <div>
             <div style={styles.tabHeader}>
@@ -1161,6 +1123,7 @@ function AdminDashboard() {
           </div>
         )}
 
+        {/* Sales Tab */}
         {activeTab === 'sales' && (
           <div>
             <h2 style={styles.sectionTitle}>Sales Records</h2>
@@ -1199,6 +1162,7 @@ function AdminDashboard() {
           </div>
         )}
 
+        {/* Meetings Tab */}
         {activeTab === 'meetings' && (
           <div>
             <h2 style={styles.sectionTitle}>Meeting Logs</h2>
@@ -1236,7 +1200,7 @@ function AdminDashboard() {
         )}
       </div>
 
-      {/* Keep all modals (RM Modal, CP Modal, Target Modal) exactly as they were */}
+      {/* RM Modal */}
       {showRMModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
@@ -1259,6 +1223,7 @@ function AdminDashboard() {
         </div>
       )}
 
+      {/* CP Modal */}
       {showCPModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
@@ -1292,68 +1257,52 @@ function AdminDashboard() {
         </div>
       )}
 
+      {/* Target Modal */}
       {showTargetModal && (
-  <div style={styles.modal}>
-    <div style={styles.modalContent}>
-      <h3>Set Monthly Target</h3>
-      <form onSubmit={handleTargetSave}>
-        <input
-          type="text"
-          placeholder="Period (e.g., march-2026)"
-          value={targetForm.period}
-          onChange={(e) => setTargetForm({...targetForm, period: e.target.value})}
-          required
-          style={styles.modalInput}
-        />
-        <input
-          type="number"
-          placeholder="CP Onboarding Target"
-          value={targetForm.cp_onboarding_target}
-          onChange={(e) => setTargetForm({...targetForm, cp_onboarding_target: e.target.value})}
-          required
-          style={styles.modalInput}
-        />
-        <input
-          type="number"
-          placeholder="Active CP Target"
-          value={targetForm.active_cp_target}
-          onChange={(e) => setTargetForm({...targetForm, active_cp_target: e.target.value})}
-          required
-          style={styles.modalInput}
-        />
-        <input
-          type="number"
-          placeholder="Meetings Target"
-          value={targetForm.meetings_target}
-          onChange={(e) => setTargetForm({...targetForm, meetings_target: e.target.value})}
-          required
-          style={styles.modalInput}
-        />
-        <input
-          type="number"
-          placeholder="Revenue Target (₹)"
-          value={targetForm.revenue_target}
-          onChange={(e) => setTargetForm({...targetForm, revenue_target: e.target.value})}
-          required
-          style={styles.modalInput}
-        />
-        <div style={styles.modalActions}>
-          <button type="button" onClick={() => setShowTargetModal(false)} style={styles.modalCancel}>Cancel</button>
-          <button type="submit" style={styles.modalSave}>Save</button>
-        </div>
-      </form>
-    </div>
-  </div>
-)}showTargetModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
             <h3>Set Monthly Target</h3>
             <form onSubmit={handleTargetSave}>
-              <input type="text" placeholder="Period (e.g., march-2026)" value={targetForm.period} onChange={(e) => setTargetForm({...targetForm, period: e.target.value})} required style={styles.modalInput} />
-              <input type="number" placeholder="CP Onboarding Target" value={targetForm.cp_onboarding_target} onChange={(e) => setTargetForm({...targetForm, cp_onboarding_target: e.target.value})} required style={styles.modalInput} />
-              <input type="number" placeholder="Active CP Target" value={targetForm.active_cp_target} onChange={(e) => setTargetForm({...targetForm, active_cp_target: e.target.value})} required style={styles.modalInput} />
-              <input type="number" placeholder="Meetings Target" value={targetForm.meetings_target} onChange={(e) => setTargetForm({...targetForm, meetings_target: e.target.value})} required style={styles.modalInput} />
-              <input type="number" placeholder="Revenue Target (₹)" value={targetForm.revenue_target} onChange={(e) => setTargetForm({...targetForm, revenue_target: e.target.value})} required style={styles.modalInput} />
+              <input
+                type="text"
+                placeholder="Period (e.g., march-2026)"
+                value={targetForm.period}
+                onChange={(e) => setTargetForm({...targetForm, period: e.target.value})}
+                required
+                style={styles.modalInput}
+              />
+              <input
+                type="number"
+                placeholder="CP Onboarding Target"
+                value={targetForm.cp_onboarding_target}
+                onChange={(e) => setTargetForm({...targetForm, cp_onboarding_target: e.target.value})}
+                required
+                style={styles.modalInput}
+              />
+              <input
+                type="number"
+                placeholder="Active CP Target"
+                value={targetForm.active_cp_target}
+                onChange={(e) => setTargetForm({...targetForm, active_cp_target: e.target.value})}
+                required
+                style={styles.modalInput}
+              />
+              <input
+                type="number"
+                placeholder="Meetings Target"
+                value={targetForm.meetings_target}
+                onChange={(e) => setTargetForm({...targetForm, meetings_target: e.target.value})}
+                required
+                style={styles.modalInput}
+              />
+              <input
+                type="number"
+                placeholder="Revenue Target (₹)"
+                value={targetForm.revenue_target}
+                onChange={(e) => setTargetForm({...targetForm, revenue_target: e.target.value})}
+                required
+                style={styles.modalInput}
+              />
               <div style={styles.modalActions}>
                 <button type="button" onClick={() => setShowTargetModal(false)} style={styles.modalCancel}>Cancel</button>
                 <button type="submit" style={styles.modalSave}>Save</button>
