@@ -520,6 +520,7 @@ function AdminDashboard() {
     setShowTargetModal(true);
   };
 
+  // ============= UPDATED TARGET SAVE FUNCTION WITH WEEKLY SUPPORT =============
   const handleTargetSave = async (e) => {
     e.preventDefault();
     try {
@@ -544,40 +545,83 @@ function AdminDashboard() {
         throw new Error(`Invalid month name: ${monthName}`);
       }
       
-      // Create date and format as YYYY-MM-DD
+      // Create date and format as YYYY-MM-DD for month
       const targetDate = new Date(year, monthIndex, 1);
-      const formattedDate = targetDate.toISOString().split('T')[0];
+      const formattedMonth = targetDate.toISOString().split('T')[0];
       
-      console.log('Saving targets for month:', formattedDate);
-      
-      // Prepare a single combined target record
-      const targetData = {
-        rm_id: targetForm.rm_id,
-        period: periodStr,
-        cp_onboarding_target: parseInt(targetForm.cp_onboarding_target) || 0,
-        active_cp_target: parseInt(targetForm.active_cp_target) || 0,
-        meetings_target: parseInt(targetForm.meetings_target) || 0,
-        revenue_target: parseInt(targetForm.revenue_target) || 0,
-        target_month: formattedDate
+      // Calculate weekly targets (monthly target / 4)
+      const monthlyValues = {
+        cp_onboarding: parseInt(targetForm.cp_onboarding_target) || 0,
+        active_cp: parseInt(targetForm.active_cp_target) || 0,
+        meetings: parseInt(targetForm.meetings_target) || 0,
+        revenue: parseInt(targetForm.revenue_target) || 0
       };
-
-      console.log('Saving target data:', targetData);
-
-      // Save to targets endpoint
-      const response = await fetch(`${API_URL}/targets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(targetData)
-      });
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Failed to save target:', errorText);
-        alert('Failed to save target');
-        return;
+      const weeklyValues = {
+        cp_onboarding: Math.round(monthlyValues.cp_onboarding / 4),
+        active_cp: Math.round(monthlyValues.active_cp / 4),
+        meetings: Math.round(monthlyValues.meetings / 4),
+        revenue: Math.round(monthlyValues.revenue / 4)
+      };
+      
+      console.log('Monthly targets:', monthlyValues);
+      console.log('Weekly targets (approx):', weeklyValues);
+      
+      // Prepare targets for each KPI type with both weekly and monthly
+      const kpiTargets = [
+        {
+          rm_id: targetForm.rm_id,
+          kpi_type: 'cp_onboarded',
+          weekly_target: weeklyValues.cp_onboarding,
+          monthly_target: monthlyValues.cp_onboarding,
+          target_month: formattedMonth,
+          target_week: formattedMonth // Will be updated for each week
+        },
+        {
+          rm_id: targetForm.rm_id,
+          kpi_type: 'cp_active',
+          weekly_target: weeklyValues.active_cp,
+          monthly_target: monthlyValues.active_cp,
+          target_month: formattedMonth,
+          target_week: formattedMonth
+        },
+        {
+          rm_id: targetForm.rm_id,
+          kpi_type: 'meetings',
+          weekly_target: weeklyValues.meetings,
+          monthly_target: monthlyValues.meetings,
+          target_month: formattedMonth,
+          target_week: formattedMonth
+        },
+        {
+          rm_id: targetForm.rm_id,
+          kpi_type: 'sales_amount',
+          weekly_target: weeklyValues.revenue,
+          monthly_target: monthlyValues.revenue,
+          target_month: formattedMonth,
+          target_week: formattedMonth
+        }
+      ];
+
+      console.log('Saving KPI targets to kpi_targets table:', kpiTargets);
+
+      // Save each target to kpi_targets table
+      for (const target of kpiTargets) {
+        const response = await fetch(`${API_URL}/kpi_targets`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(target)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Failed to save ${target.kpi_type}:`, errorText);
+          alert(`Failed to save ${target.kpi_type} target`);
+          return;
+        }
       }
       
-      alert('Target saved successfully!');
+      alert('Targets saved successfully with weekly and monthly values!');
       setShowTargetModal(false);
       loadAllData();
       
