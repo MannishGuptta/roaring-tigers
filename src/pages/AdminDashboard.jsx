@@ -35,18 +35,17 @@ function AdminDashboard() {
     status: 'active'
   });
 
+  // UPDATED CP FORM to match channel_partners table structure
   const [cpForm, setCpForm] = useState({
-    cp_name: '',
+    name: '',              // Changed from cp_name to match table
     phone: '',
     email: '',
     address: '',
-    cp_type: 'individual',
-    operating_markets: '',
-    industry: '',
-    expected_monthly_business: '',
     rm_id: '',
     status: 'active',
-    onboard_date: new Date().toISOString().split('T')[0]
+    join_date: new Date().toISOString().split('T')[0],  // Changed from onboard_date to match table
+    commission_rate: '',   // Added to match table
+    gst_number: ''         // Added to match table
   });
 
   const [salesForm, setSalesForm] = useState({
@@ -263,7 +262,7 @@ function AdminDashboard() {
       
       // CPs onboarded in date range
       const rmCPsOnboarded = rmCPs.filter(cp => 
-        cp?.onboard_date && new Date(cp.onboard_date) >= startDate
+        cp?.join_date && new Date(cp.join_date) >= startDate
       );
       
       // Calculate active CPs (CPs with sales in date range)
@@ -384,7 +383,7 @@ function AdminDashboard() {
       totalRevenue: safeSales.reduce((sum, s) => sum + (s?.sale_amount || 0), 0),
       
       periodStats: {
-        cp_onboarding: safeCps.filter(cp => cp?.onboard_date && new Date(cp.onboard_date) >= startDate).length,
+        cp_onboarding: safeCps.filter(cp => cp?.join_date && new Date(cp.join_date) >= startDate).length,
         sales: safeSales.filter(sale => sale?.sale_date && new Date(sale.sale_date) >= startDate).length,
         meetings: safeMeetings.filter(meeting => meeting?.meeting_date && new Date(meeting.meeting_date) >= startDate).length,
         revenue: safeSales.filter(sale => sale?.sale_date && new Date(sale.sale_date) >= startDate)
@@ -482,7 +481,7 @@ function AdminDashboard() {
     
     // Calculate team achievements in date range
     const teamAchievements = {
-      cp_onboarding: safeCps.filter(cp => cp?.onboard_date && new Date(cp.onboard_date) >= startDate).length,
+      cp_onboarding: safeCps.filter(cp => cp?.join_date && new Date(cp.join_date) >= startDate).length,
       active_cp: new Set(safeSales.filter(s => s?.sale_date && new Date(s.sale_date) >= startDate).map(s => s?.cp_id).filter(id => id)).size,
       meetings: safeMeetings.filter(m => m?.meeting_date && new Date(m.meeting_date) >= startDate).length,
       revenue: safeSales.filter(s => s?.sale_date && new Date(s.sale_date) >= startDate)
@@ -634,21 +633,19 @@ function AdminDashboard() {
     }
   };
 
-  // CP Handlers
+  // UPDATED CP Handlers to match channel_partners table
   const handleAddCP = () => {
     setEditingItem(null);
     setCpForm({
-      cp_name: '',
+      name: '',
       phone: '',
       email: '',
       address: '',
-      cp_type: 'individual',
-      operating_markets: '',
-      industry: '',
-      expected_monthly_business: '',
       rm_id: rms.length > 0 ? rms[0]?.id || '' : '',
       status: 'active',
-      onboard_date: new Date().toISOString().split('T')[0]
+      join_date: new Date().toISOString().split('T')[0],
+      commission_rate: '',
+      gst_number: ''
     });
     setShowCPModal(true);
   };
@@ -656,17 +653,15 @@ function AdminDashboard() {
   const handleEditCP = (cp) => {
     setEditingItem(cp);
     setCpForm({
-      cp_name: cp?.cp_name || '',
+      name: cp?.name || '',
       phone: cp?.phone || '',
       email: cp?.email || '',
       address: cp?.address || '',
-      cp_type: cp?.cp_type || 'individual',
-      operating_markets: cp?.operating_markets || '',
-      industry: cp?.industry || '',
-      expected_monthly_business: cp?.expected_monthly_business || '',
       rm_id: cp?.rm_id || '',
       status: cp?.status || 'active',
-      onboard_date: cp?.onboard_date || new Date().toISOString().split('T')[0]
+      join_date: cp?.join_date || new Date().toISOString().split('T')[0],
+      commission_rate: cp?.commission_rate || '',
+      gst_number: cp?.gst_number || ''
     });
     setShowCPModal(true);
   };
@@ -677,10 +672,24 @@ function AdminDashboard() {
       const url = editingItem ? `${API_URL}/channel_partners/${editingItem.id}` : `${API_URL}/channel_partners`;
       const method = editingItem ? 'PUT' : 'POST';
       
+      const cpData = {
+        name: cpForm.name,
+        phone: cpForm.phone,
+        email: cpForm.email,
+        address: cpForm.address,
+        rm_id: parseInt(cpForm.rm_id) || null,
+        status: cpForm.status,
+        join_date: cpForm.join_date,
+        commission_rate: parseFloat(cpForm.commission_rate) || 0,
+        gst_number: cpForm.gst_number
+      };
+      
+      console.log('Saving CP data:', cpData);
+      
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cpForm)
+        body: JSON.stringify(cpData)
       });
       
       if (response.ok) {
@@ -1405,7 +1414,7 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* RMs Tab - FIXED with all columns */}
+        {/* RMs Tab */}
         {activeTab === 'rms' && (
           <div>
             <div style={styles.tabHeader}>
@@ -1497,7 +1506,7 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* CPs Tab */}
+        {/* UPDATED CPs Tab to show correct columns */}
         {activeTab === 'cps' && (
           <div>
             <div style={styles.tabHeader}>
@@ -1514,9 +1523,11 @@ function AdminDashboard() {
                     <th>ID</th>
                     <th>Name</th>
                     <th>Phone</th>
+                    <th>Email</th>
                     <th>RM</th>
-                    <th>Type</th>
+                    <th>Commission</th>
                     <th>Status</th>
+                    <th>Join Date</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -1526,10 +1537,11 @@ function AdminDashboard() {
                     return (
                       <tr key={cp?.id}>
                         <td>{cp?.id}</td>
-                        <td>{cp?.cp_name}</td>
+                        <td>{cp?.name}</td>
                         <td>{cp?.phone}</td>
+                        <td>{cp?.email}</td>
                         <td>{rm?.name || cp?.rm_id}</td>
-                        <td>{cp?.cp_type}</td>
+                        <td>{cp?.commission_rate || 0}%</td>
                         <td>
                           <span style={{ 
                             padding: '3px 8px', 
@@ -1540,6 +1552,7 @@ function AdminDashboard() {
                             {cp?.status}
                           </span>
                         </td>
+                        <td>{cp?.join_date ? new Date(cp.join_date).toLocaleDateString() : ''}</td>
                         <td>
                           <button onClick={() => handleEditCP(cp)} style={styles.editBtn} title="Edit">✏️</button>
                           <button onClick={() => handleOpenTransferCP(cp)} style={styles.transferBtn} title="Transfer to another RM">🔄</button>
@@ -1586,7 +1599,7 @@ function AdminDashboard() {
                       <tr key={sale?.id}>
                         <td>{sale?.id}</td>
                         <td>{rm?.name || sale?.rm_id}</td>
-                        <td>{cp?.cp_name || sale?.cp_id}</td>
+                        <td>{cp?.name || sale?.cp_id}</td>
                         <td>{sale?.applicant_name}</td>
                         <td>{formatCurrency(sale?.sale_amount || 0)}</td>
                         <td>{sale?.sale_date ? new Date(sale.sale_date).toLocaleDateString() : ''}</td>
@@ -1638,7 +1651,7 @@ function AdminDashboard() {
                       <tr key={meeting?.id}>
                         <td>{meeting?.id}</td>
                         <td>{rm?.name || meeting?.rm_id}</td>
-                        <td>{cp?.cp_name || meeting?.cp_id}</td>
+                        <td>{cp?.name || meeting?.cp_id}</td>
                         <td>{meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString() : ''}</td>
                         <td>{meeting?.outcome}</td>
                         <td>
@@ -1677,24 +1690,19 @@ function AdminDashboard() {
         </div>
       )}
 
-      {/* CP Modal */}
+      {/* UPDATED CP Modal to match table structure */}
       {showCPModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
             <h3>{editingItem ? 'Edit CP' : 'Add New CP'}</h3>
             <form onSubmit={handleCPSave}>
-              <input type="text" placeholder="CP Name" value={cpForm.cp_name || ''} onChange={(e) => setCpForm({...cpForm, cp_name: e.target.value})} required style={styles.modalInput} />
+              <input type="text" placeholder="CP Name" value={cpForm.name || ''} onChange={(e) => setCpForm({...cpForm, name: e.target.value})} required style={styles.modalInput} />
               <input type="tel" placeholder="Phone" value={cpForm.phone || ''} onChange={(e) => setCpForm({...cpForm, phone: e.target.value})} required style={styles.modalInput} />
               <input type="email" placeholder="Email" value={cpForm.email || ''} onChange={(e) => setCpForm({...cpForm, email: e.target.value})} style={styles.modalInput} />
               <input type="text" placeholder="Address" value={cpForm.address || ''} onChange={(e) => setCpForm({...cpForm, address: e.target.value})} style={styles.modalInput} />
-              <select value={cpForm.cp_type || 'individual'} onChange={(e) => setCpForm({...cpForm, cp_type: e.target.value})} style={styles.modalInput}>
-                <option value="individual">Individual</option>
-                <option value="company">Company</option>
-              </select>
-              <input type="text" placeholder="Operating Markets" value={cpForm.operating_markets || ''} onChange={(e) => setCpForm({...cpForm, operating_markets: e.target.value})} style={styles.modalInput} />
-              <input type="text" placeholder="Industry" value={cpForm.industry || ''} onChange={(e) => setCpForm({...cpForm, industry: e.target.value})} style={styles.modalInput} />
-              <input type="number" placeholder="Expected Monthly Business" value={cpForm.expected_monthly_business || ''} onChange={(e) => setCpForm({...cpForm, expected_monthly_business: e.target.value})} style={styles.modalInput} />
-              <input type="date" placeholder="Onboard Date" value={cpForm.onboard_date || new Date().toISOString().split('T')[0]} onChange={(e) => setCpForm({...cpForm, onboard_date: e.target.value})} style={styles.modalInput} />
+              <input type="number" placeholder="Commission Rate (%)" value={cpForm.commission_rate || ''} onChange={(e) => setCpForm({...cpForm, commission_rate: e.target.value})} step="0.1" min="0" max="100" style={styles.modalInput} />
+              <input type="text" placeholder="GST Number" value={cpForm.gst_number || ''} onChange={(e) => setCpForm({...cpForm, gst_number: e.target.value})} style={styles.modalInput} />
+              <input type="date" placeholder="Join Date" value={cpForm.join_date || new Date().toISOString().split('T')[0]} onChange={(e) => setCpForm({...cpForm, join_date: e.target.value})} style={styles.modalInput} />
               <select value={cpForm.rm_id || ''} onChange={(e) => setCpForm({...cpForm, rm_id: e.target.value})} required style={styles.modalInput}>
                 <option value="">Select RM</option>
                 {rms.map(rm => <option key={rm?.id} value={rm?.id}>{rm?.name}</option>)}
@@ -1762,7 +1770,7 @@ function AdminDashboard() {
                 style={styles.modalInput}
               >
                 <option value="">Select CP</option>
-                {cps.map(cp => <option key={cp?.id} value={cp?.id}>{cp?.cp_name}</option>)}
+                {cps.map(cp => <option key={cp?.id} value={cp?.id}>{cp?.name}</option>)}
               </select>
               
               <input type="text" placeholder="Applicant Name" value={salesForm.applicant_name || ''} onChange={(e) => setSalesForm({...salesForm, applicant_name: e.target.value})} required style={styles.modalInput} />
@@ -1804,7 +1812,7 @@ function AdminDashboard() {
           <div style={styles.modalContent}>
             <h3>Transfer Sale to Another CP</h3>
             <form onSubmit={handleTransferSale}>
-              <p><strong>From CP:</strong> {cps.find(c => c?.id === transferSalesForm.from_cp_id)?.cp_name}</p>
+              <p><strong>From CP:</strong> {cps.find(c => c?.id === transferSalesForm.from_cp_id)?.name}</p>
               <select
                 value={transferSalesForm.to_cp_id || ''}
                 onChange={(e) => setTransferSalesForm({...transferSalesForm, to_cp_id: parseInt(e.target.value)})}
@@ -1813,7 +1821,7 @@ function AdminDashboard() {
               >
                 <option value="">Select Target CP</option>
                 {cps.filter(cp => cp?.id !== transferSalesForm.from_cp_id).map(cp => (
-                  <option key={cp?.id} value={cp?.id}>{cp?.cp_name}</option>
+                  <option key={cp?.id} value={cp?.id}>{cp?.name}</option>
                 ))}
               </select>
               <div style={styles.modalActions}>
