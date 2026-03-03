@@ -578,6 +578,7 @@ function AdminDashboard() {
       const response = await fetch(`${API_URL}/${type}/${id}`, { method: 'DELETE' });
       if (response.ok) {
         await loadAllData();
+        alert(`${type} deleted successfully!`);
       } else {
         alert('Failed to delete');
       }
@@ -1404,7 +1405,7 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* RMs Tab */}
+        {/* RMs Tab - FIXED with all columns */}
         {activeTab === 'rms' && (
           <div>
             <div style={styles.tabHeader}>
@@ -1414,38 +1415,45 @@ function AdminDashboard() {
                 <button onClick={handleAddRM} style={styles.addButton}>➕ Add RM</button>
               </div>
             </div>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  <th>Email</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rms.map(rm => (
-                  <tr key={rm?.id}>
-                    <td>{rm?.id}</td>
-                    <td>{rm?.name}</td>
-                    <td>{rm?.phone}</td>
-                    <td>{rm?.email}</td>
-                    <td>
-                      <span style={{...styles.badge, background: rm?.status === 'active' ? '#d4edda' : '#f8d7da'}}>
-                        {rm?.status}
-                      </span>
-                    </td>
-                    <td>
-                      <button onClick={() => handleEditRM(rm)} style={styles.editBtn} title="Edit">✏️</button>
-                      <button onClick={() => handleAddTarget(rm)} style={styles.targetBtn} title="Set Target">🎯</button>
-                      <button onClick={() => handleDelete('rms', rm?.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
-                    </td>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rms.map(rm => (
+                    <tr key={rm?.id}>
+                      <td>{rm?.id}</td>
+                      <td>{rm?.name}</td>
+                      <td>{rm?.phone}</td>
+                      <td>{rm?.email}</td>
+                      <td>
+                        <span style={{ 
+                          padding: '3px 8px', 
+                          borderRadius: '3px', 
+                          fontSize: '12px',
+                          background: rm?.status === 'active' ? '#d4edda' : '#f8d7da' 
+                        }}>
+                          {rm?.status}
+                        </span>
+                      </td>
+                      <td>
+                        <button onClick={() => handleEditRM(rm)} style={styles.editBtn} title="Edit">✏️</button>
+                        <button onClick={() => handleAddTarget(rm)} style={styles.targetBtn} title="Set Target">🎯</button>
+                        <button onClick={() => handleDelete('rms', rm?.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -1453,37 +1461,39 @@ function AdminDashboard() {
         {activeTab === 'targets' && (
           <div>
             <h2 style={styles.sectionTitle}>Monthly Targets</h2>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>RM</th>
-                  <th>Period</th>
-                  <th>CP Target</th>
-                  <th>Active CP</th>
-                  <th>Meetings</th>
-                  <th>Revenue</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {targets.map(target => {
-                  const rm = rms.find(r => String(r?.id) === String(target?.rm_id));
-                  return (
-                    <tr key={target?.id}>
-                      <td>{rm?.name || target?.rm_id}</td>
-                      <td>{target?.period}</td>
-                      <td>{target?.cp_onboarding_target}</td>
-                      <td>{target?.active_cp_target}</td>
-                      <td>{target?.meetings_target}</td>
-                      <td>{formatCurrency(target?.revenue_target || 0)}</td>
-                      <td>
-                        <button onClick={() => handleDelete('targets', target?.id)} style={styles.deleteBtn}>🗑️</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th>RM</th>
+                    <th>Period</th>
+                    <th>CP Target</th>
+                    <th>Active CP</th>
+                    <th>Meetings</th>
+                    <th>Revenue</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {targets.map(target => {
+                    const rm = rms.find(r => String(r?.id) === String(target?.rm_id));
+                    return (
+                      <tr key={target?.id}>
+                        <td>{rm?.name || target?.rm_id}</td>
+                        <td>{target?.period}</td>
+                        <td>{target?.cp_onboarding_target}</td>
+                        <td>{target?.active_cp_target}</td>
+                        <td>{target?.meetings_target}</td>
+                        <td>{formatCurrency(target?.revenue_target || 0)}</td>
+                        <td>
+                          <button onClick={() => handleDelete('targets', target?.id)} style={styles.deleteBtn}>🗑️</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -1497,43 +1507,50 @@ function AdminDashboard() {
                 <button onClick={handleAddCP} style={styles.addButton}>➕ Add CP</button>
               </div>
             </div>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  <th>RM</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cps.map(cp => {
-                  const rm = rms.find(r => String(r?.id) === String(cp?.rm_id));
-                  return (
-                    <tr key={cp?.id}>
-                      <td>{cp?.id}</td>
-                      <td>{cp?.cp_name}</td>
-                      <td>{cp?.phone}</td>
-                      <td>{rm?.name || cp?.rm_id}</td>
-                      <td>{cp?.cp_type}</td>
-                      <td>
-                        <span style={{...styles.badge, background: cp?.status === 'active' ? '#d4edda' : '#f8d7da'}}>
-                          {cp?.status}
-                        </span>
-                      </td>
-                      <td>
-                        <button onClick={() => handleEditCP(cp)} style={styles.editBtn} title="Edit">✏️</button>
-                        <button onClick={() => handleOpenTransferCP(cp)} style={styles.transferBtn} title="Transfer to another RM">🔄</button>
-                        <button onClick={() => handleDelete('channel_partners', cp?.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>RM</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cps.map(cp => {
+                    const rm = rms.find(r => String(r?.id) === String(cp?.rm_id));
+                    return (
+                      <tr key={cp?.id}>
+                        <td>{cp?.id}</td>
+                        <td>{cp?.cp_name}</td>
+                        <td>{cp?.phone}</td>
+                        <td>{rm?.name || cp?.rm_id}</td>
+                        <td>{cp?.cp_type}</td>
+                        <td>
+                          <span style={{ 
+                            padding: '3px 8px', 
+                            borderRadius: '3px', 
+                            fontSize: '12px',
+                            background: cp?.status === 'active' ? '#d4edda' : '#f8d7da' 
+                          }}>
+                            {cp?.status}
+                          </span>
+                        </td>
+                        <td>
+                          <button onClick={() => handleEditCP(cp)} style={styles.editBtn} title="Edit">✏️</button>
+                          <button onClick={() => handleOpenTransferCP(cp)} style={styles.transferBtn} title="Transfer to another RM">🔄</button>
+                          <button onClick={() => handleDelete('channel_partners', cp?.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -1547,46 +1564,53 @@ function AdminDashboard() {
                 <button onClick={handleAddSale} style={styles.addButton}>➕ Add Sale</button>
               </div>
             </div>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>RM</th>
-                  <th>CP</th>
-                  <th>Applicant</th>
-                  <th>Amount</th>
-                  <th>Date</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sales.map(sale => {
-                  const rm = rms.find(r => String(r?.id) === String(sale?.rm_id));
-                  const cp = cps.find(c => String(c?.id) === String(sale?.cp_id));
-                  return (
-                    <tr key={sale?.id}>
-                      <td>{sale?.id}</td>
-                      <td>{rm?.name || sale?.rm_id}</td>
-                      <td>{cp?.cp_name || sale?.cp_id}</td>
-                      <td>{sale?.applicant_name}</td>
-                      <td>{formatCurrency(sale?.sale_amount || 0)}</td>
-                      <td>{sale?.sale_date ? new Date(sale.sale_date).toLocaleDateString() : ''}</td>
-                      <td>
-                        <span style={{...styles.badge, background: sale?.payment_status === 'completed' ? '#d4edda' : '#fff3cd'}}>
-                          {sale?.payment_status}
-                        </span>
-                      </td>
-                      <td>
-                        <button onClick={() => handleEditSale(sale)} style={styles.editBtn} title="Edit">✏️</button>
-                        <button onClick={() => handleOpenTransferSale(sale)} style={styles.transferBtn} title="Transfer to another CP">🔄</button>
-                        <button onClick={() => handleDelete('sales', sale?.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>RM</th>
+                    <th>CP</th>
+                    <th>Applicant</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sales.map(sale => {
+                    const rm = rms.find(r => String(r?.id) === String(sale?.rm_id));
+                    const cp = cps.find(c => String(c?.id) === String(sale?.cp_id));
+                    return (
+                      <tr key={sale?.id}>
+                        <td>{sale?.id}</td>
+                        <td>{rm?.name || sale?.rm_id}</td>
+                        <td>{cp?.cp_name || sale?.cp_id}</td>
+                        <td>{sale?.applicant_name}</td>
+                        <td>{formatCurrency(sale?.sale_amount || 0)}</td>
+                        <td>{sale?.sale_date ? new Date(sale.sale_date).toLocaleDateString() : ''}</td>
+                        <td>
+                          <span style={{ 
+                            padding: '3px 8px', 
+                            borderRadius: '3px', 
+                            fontSize: '12px',
+                            background: sale?.payment_status === 'completed' ? '#d4edda' : '#fff3cd' 
+                          }}>
+                            {sale?.payment_status}
+                          </span>
+                        </td>
+                        <td>
+                          <button onClick={() => handleEditSale(sale)} style={styles.editBtn} title="Edit">✏️</button>
+                          <button onClick={() => handleOpenTransferSale(sale)} style={styles.transferBtn} title="Transfer to another CP">🔄</button>
+                          <button onClick={() => handleDelete('sales', sale?.id)} style={styles.deleteBtn} title="Delete">🗑️</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -1594,36 +1618,38 @@ function AdminDashboard() {
         {activeTab === 'meetings' && (
           <div>
             <h2 style={styles.sectionTitle}>Meeting Logs</h2>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>RM</th>
-                  <th>CP</th>
-                  <th>Date</th>
-                  <th>Outcome</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {meetings.map(meeting => {
-                  const rm = rms.find(r => String(r?.id) === String(meeting?.rm_id));
-                  const cp = cps.find(c => String(c?.id) === String(meeting?.cp_id));
-                  return (
-                    <tr key={meeting?.id}>
-                      <td>{meeting?.id}</td>
-                      <td>{rm?.name || meeting?.rm_id}</td>
-                      <td>{cp?.cp_name || meeting?.cp_id}</td>
-                      <td>{meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString() : ''}</td>
-                      <td>{meeting?.outcome}</td>
-                      <td>
-                        <button onClick={() => handleDelete('meetings', meeting?.id)} style={styles.deleteBtn}>🗑️</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>RM</th>
+                    <th>CP</th>
+                    <th>Date</th>
+                    <th>Outcome</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {meetings.map(meeting => {
+                    const rm = rms.find(r => String(r?.id) === String(meeting?.rm_id));
+                    const cp = cps.find(c => String(c?.id) === String(meeting?.cp_id));
+                    return (
+                      <tr key={meeting?.id}>
+                        <td>{meeting?.id}</td>
+                        <td>{rm?.name || meeting?.rm_id}</td>
+                        <td>{cp?.cp_name || meeting?.cp_id}</td>
+                        <td>{meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString() : ''}</td>
+                        <td>{meeting?.outcome}</td>
+                        <td>
+                          <button onClick={() => handleDelete('meetings', meeting?.id)} style={styles.deleteBtn}>🗑️</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
