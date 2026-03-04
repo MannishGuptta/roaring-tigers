@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase directly
@@ -116,7 +116,7 @@ function Dashboard() {
       supabase.removeChannel(meetingsSubscription);
       supabase.removeChannel(salesSubscription);
     };
-  }, [rm, timeRange]); // Re-run if rm or timeRange changes
+  }, [rm, timeRange]);
 
   const loadTargets = async (rmId) => {
     try {
@@ -540,22 +540,30 @@ function Dashboard() {
             </div>
           )}
 
-          {/* Quick Actions */}
+          {/* Quick Actions - FIXED with Links */}
           <div style={styles.actionsSection}>
             <h2 style={styles.sectionTitle}>Quick Actions</h2>
             <div style={styles.actionGrid}>
-              <button onClick={() => navigate('/onboard-cp')} style={styles.actionBtn}>
-                <span style={styles.actionIcon}>➕</span> Onboard CP
-              </button>
-              <button onClick={() => navigate('/my-cps')} style={styles.actionBtn}>
-                <span style={styles.actionIcon}>👥</span> My CPs
-              </button>
-              <button onClick={() => navigate('/log-meeting')} style={styles.actionBtn}>
-                <span style={styles.actionIcon}>📝</span> Log Meeting
-              </button>
-              <button onClick={() => navigate('/record-sale')} style={styles.actionBtn}>
-                <span style={styles.actionIcon}>💰</span> Record Sale
-              </button>
+              <Link to="/onboard-cp" style={{ textDecoration: 'none', width: '100%' }}>
+                <div style={styles.actionBtn}>
+                  <span style={styles.actionIcon}>➕</span> Onboard CP
+                </div>
+              </Link>
+              <Link to="/my-cps" style={{ textDecoration: 'none', width: '100%' }}>
+                <div style={styles.actionBtn}>
+                  <span style={styles.actionIcon}>👥</span> My CPs
+                </div>
+              </Link>
+              <Link to="/log-meeting" style={{ textDecoration: 'none', width: '100%' }}>
+                <div style={styles.actionBtn}>
+                  <span style={styles.actionIcon}>📝</span> Log Meeting
+                </div>
+              </Link>
+              <Link to="/record-sale" style={{ textDecoration: 'none', width: '100%' }}>
+                <div style={styles.actionBtn}>
+                  <span style={styles.actionIcon}>💰</span> Record Sale
+                </div>
+              </Link>
             </div>
           </div>
 
@@ -749,26 +757,6 @@ const styles = {
   predictionDetails: {
     color: '#495057'
   },
-  backlogBox: {
-    marginTop: '10px',
-    padding: '8px',
-    background: '#fff3cd',
-    borderRadius: '4px',
-    border: '1px solid #ffeeba'
-  },
-  backlogTitle: {
-    color: '#856404',
-    fontWeight: 'bold',
-    marginBottom: '5px',
-    fontSize: '12px'
-  },
-  recommendations: {
-    fontSize: '11px',
-    color: '#495057'
-  },
-  recommendation: {
-    marginBottom: '3px'
-  },
   actionsSection: {
     background: 'white',
     padding: '20px',
@@ -792,7 +780,9 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '8px'
+    gap: '8px',
+    width: '100%',
+    boxSizing: 'border-box'
   },
   actionIcon: {
     fontSize: '18px'
