@@ -1,43 +1,9 @@
-export const supabase = {
-  from: (table) => ({
-    select: () => ({
-      eq: (column, value) => ({
-        eq: (column2, value2) => ({
-          then: async (resolve) => {
-            try {
-              const response = await fetch(`https://roaring-tigers-backend.onrender.com/${table}?${column}=${value}&${column2}=${value2}`)
-              const data = await response.json()
-              resolve({ data, error: null })
-            } catch (err) {
-              resolve({ data: null, error: { message: err.message } })
-            }
-          }
-        }),
-        then: async (resolve) => {
-          try {
-            const response = await fetch(`https://roaring-tigers-backend.onrender.com/${table}?${column}=${value}`)
-            const data = await response.json()
-            resolve({ data, error: null })
-          } catch (err) {
-            resolve({ data: null, error: { message: err.message } })
-          }
-        }
-      })
-    }),
-    insert: (records) => ({
-      then: async (resolve) => {
-        try {
-          const response = await fetch(`https://roaring-tigers-backend.onrender.com/${table}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(records)
-          })
-          const data = await response.json()
-          resolve({ data, error: null })
-        } catch (err) {
-          resolve({ data: null, error: { message: err.message } })
-        }
-      }
-    })
-  })
-}
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = 'https://ybtyvycgmahsxqclkgab.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlidHl2eWNnbWFoc3hxY2xrZ2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMTgxNjQsImV4cCI6MjA4NzU5NDE2NH0.O3qcr39duZnFxfjTE6DwFY-eQXCLCYCVZ4ijaEFiHxs';
+
+// Create a single instance of the Supabase client
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export default supabase;
