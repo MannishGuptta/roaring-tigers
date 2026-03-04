@@ -59,16 +59,8 @@ function Login() {
       // Store user data in session
       sessionStorage.setItem('user', JSON.stringify(user));
       
-      // TEMPORARY: Always go to RM dashboard for testing
-      // You can change this logic later based on user role
-      navigate('/rm/dashboard');
-
-      // Original logic commented out for now:
-      // if (phone === '9876543210') {
-      //   navigate('/admin/dashboard');
-      // } else {
-      //   navigate('/rm/dashboard');
-      // }
+      // FIXED: Redirect to the correct dashboard route that exists in App.js
+      navigate('/dashboard');
 
     } catch (err) {
       console.error('Login error:', err);
