@@ -38,12 +38,85 @@ function Dashboard() {
     console.log('Logged in user:', user);
   }, [navigate]);
 
+  // Load initial data
   useEffect(() => {
     if (rm) {
       loadDashboardData(rm.id, timeRange);
       loadTargets(rm.id);
     }
   }, [rm, timeRange]);
+
+  // REALTIME SUBSCRIPTIONS - Live updates when data changes
+  useEffect(() => {
+    if (!rm) return;
+
+    console.log('Setting up realtime subscriptions for RM:', rm.id);
+
+    // Subscribe to Channel Partners changes
+    const cpSubscription = supabase
+      .channel('cp-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'channel_partners',
+          filter: `rm_id=eq.${rm.id}`
+        },
+        (payload) => {
+          console.log('CP changed - realtime update:', payload);
+          loadDashboardData(rm.id, timeRange);
+        }
+      )
+      .subscribe((status) => {
+        console.log('CP subscription status:', status);
+      });
+
+    // Subscribe to Meetings changes
+    const meetingsSubscription = supabase
+      .channel('meetings-changes')
+      .on('postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'meetings',
+          filter: `rm_id=eq.${rm.id}`
+        },
+        (payload) => {
+          console.log('Meeting changed - realtime update:', payload);
+          loadDashboardData(rm.id, timeRange);
+        }
+      )
+      .subscribe((status) => {
+        console.log('Meetings subscription status:', status);
+      });
+
+    // Subscribe to Sales changes
+    const salesSubscription = supabase
+      .channel('sales-changes')
+      .on('postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'sales',
+          filter: `rm_id=eq.${rm.id}`
+        },
+        (payload) => {
+          console.log('Sale changed - realtime update:', payload);
+          loadDashboardData(rm.id, timeRange);
+        }
+      )
+      .subscribe((status) => {
+        console.log('Sales subscription status:', status);
+      });
+
+    // Cleanup subscriptions when component unmounts
+    return () => {
+      console.log('Cleaning up realtime subscriptions');
+      supabase.removeChannel(cpSubscription);
+      supabase.removeChannel(meetingsSubscription);
+      supabase.removeChannel(salesSubscription);
+    };
+  }, [rm, timeRange]); // Re-run if rm or timeRange changes
 
   const loadTargets = async (rmId) => {
     try {
@@ -250,6 +323,7 @@ function Dashboard() {
 
   return (
     <div style={styles.container}>
+      {/* Header */}
       <div style={styles.header}>
         <div>
           <h1 style={styles.welcome}>🦁 Welcome, {rm.name}!</h1>
@@ -258,6 +332,7 @@ function Dashboard() {
         <button onClick={() => navigate('/')} style={styles.logoutBtn}>Logout</button>
       </div>
 
+      {/* Time Filters */}
       <div style={styles.filterBar}>
         <div style={styles.filterLabel}>Show stats for:</div>
         <div style={styles.filterButtons}>
@@ -283,6 +358,7 @@ function Dashboard() {
         <div style={styles.loading}>Loading dashboard...</div>
       ) : (
         <>
+          {/* Stats Cards */}
           <div style={styles.statsGrid}>
             <div style={styles.statCard}>
               <div style={styles.statIcon}>👥</div>
@@ -321,17 +397,150 @@ function Dashboard() {
             </div>
           </div>
 
+          {/* Target vs Achievement Section */}
           {targets && (
             <div style={styles.targetsSection}>
               <h2 style={styles.sectionTitle}>🎯 Monthly Targets ({getCurrentPeriod()})</h2>
               
+              {/* Progress Bars */}
               <div style={styles.targetsGrid}>
-                {/* Target cards would go here - shortened for brevity */}
-                <div>Targets section</div>
+                {/* CP Onboarding */}
+                <div style={styles.targetCard}>
+                  <div style={styles.targetHeader}>
+                    <span>CP Onboarding</span>
+                    <span>{stats.totalCPs} / {targets.cp_onboarding_target}</span>
+                  </div>
+                  <div style={styles.progressBar}>
+                    <div style={{
+                      ...styles.progressFill,
+                      width: `${calculateProgress(stats.totalCPs, targets.cp_onboarding_target)}%`,
+                      backgroundColor: getProgressColor(calculateProgress(stats.totalCPs, targets.cp_onboarding_target))
+                    }} />
+                  </div>
+                  
+                  {/* Prediction */}
+                  {predictions.cp_onboarding && (
+                    <div style={styles.predictionBox}>
+                      <div style={styles.predictionHeader}>
+                        <span>📊 Projection</span>
+                        <span style={{
+                          color: predictions.cp_onboarding.confidence.includes('✅') ? '#28a745' :
+                                 predictions.cp_onboarding.confidence.includes('⚠️') ? '#ffc107' : '#dc3545'
+                        }}>
+                          {predictions.cp_onboarding.confidence}
+                        </span>
+                      </div>
+                      <div style={styles.predictionDetails}>
+                        <div>Projected: {predictions.cp_onboarding.projectedValue} CPs</div>
+                        <div>Gap: {predictions.cp_onboarding.gap} CPs</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Active CP */}
+                <div style={styles.targetCard}>
+                  <div style={styles.targetHeader}>
+                    <span>Active CPs</span>
+                    <span>{stats.activeCPs} / {targets.active_cp_target}</span>
+                  </div>
+                  <div style={styles.progressBar}>
+                    <div style={{
+                      ...styles.progressFill,
+                      width: `${calculateProgress(stats.activeCPs, targets.active_cp_target)}%`,
+                      backgroundColor: getProgressColor(calculateProgress(stats.activeCPs, targets.active_cp_target))
+                    }} />
+                  </div>
+                  
+                  {predictions.active_cp && (
+                    <div style={styles.predictionBox}>
+                      <div style={styles.predictionHeader}>
+                        <span>📊 Projection</span>
+                        <span style={{
+                          color: predictions.active_cp.confidence.includes('✅') ? '#28a745' :
+                                 predictions.active_cp.confidence.includes('⚠️') ? '#ffc107' : '#dc3545'
+                        }}>
+                          {predictions.active_cp.confidence}
+                        </span>
+                      </div>
+                      <div style={styles.predictionDetails}>
+                        <div>Projected: {predictions.active_cp.projectedValue} Active</div>
+                        <div>Gap: {predictions.active_cp.gap} Active</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Meetings */}
+                <div style={styles.targetCard}>
+                  <div style={styles.targetHeader}>
+                    <span>Meetings</span>
+                    <span>{stats.totalMeetings} / {targets.meetings_target}</span>
+                  </div>
+                  <div style={styles.progressBar}>
+                    <div style={{
+                      ...styles.progressFill,
+                      width: `${calculateProgress(stats.totalMeetings, targets.meetings_target)}%`,
+                      backgroundColor: getProgressColor(calculateProgress(stats.totalMeetings, targets.meetings_target))
+                    }} />
+                  </div>
+                  
+                  {predictions.meetings && (
+                    <div style={styles.predictionBox}>
+                      <div style={styles.predictionHeader}>
+                        <span>📊 Projection</span>
+                        <span style={{
+                          color: predictions.meetings.confidence.includes('✅') ? '#28a745' :
+                                 predictions.meetings.confidence.includes('⚠️') ? '#ffc107' : '#dc3545'
+                        }}>
+                          {predictions.meetings.confidence}
+                        </span>
+                      </div>
+                      <div style={styles.predictionDetails}>
+                        <div>Projected: {predictions.meetings.projectedValue} Meetings</div>
+                        <div>Gap: {predictions.meetings.gap} Meetings</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Revenue */}
+                <div style={styles.targetCard}>
+                  <div style={styles.targetHeader}>
+                    <span>Revenue</span>
+                    <span>{formatCurrency(stats.totalSalesValue)} / {formatCurrency(targets.revenue_target)}</span>
+                  </div>
+                  <div style={styles.progressBar}>
+                    <div style={{
+                      ...styles.progressFill,
+                      width: `${calculateProgress(stats.totalSalesValue, targets.revenue_target)}%`,
+                      backgroundColor: getProgressColor(calculateProgress(stats.totalSalesValue, targets.revenue_target))
+                    }} />
+                  </div>
+                  
+                  {predictions.revenue && (
+                    <div style={styles.predictionBox}>
+                      <div style={styles.predictionHeader}>
+                        <span>📊 Projection</span>
+                        <span style={{
+                          color: predictions.revenue.confidence.includes('✅') ? '#28a745' :
+                                 predictions.revenue.confidence.includes('⚠️') ? '#ffc107' : '#dc3545'
+                        }}>
+                          {predictions.revenue.confidence}
+                        </span>
+                      </div>
+                      <div style={styles.predictionDetails}>
+                        <div>Projected: {formatCurrency(predictions.revenue.projectedValue)}</div>
+                        <div>Gap: {formatCurrency(predictions.revenue.gap)}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
 
+          {/* Quick Actions */}
           <div style={styles.actionsSection}>
             <h2 style={styles.sectionTitle}>Quick Actions</h2>
             <div style={styles.actionGrid}>
@@ -350,6 +559,7 @@ function Dashboard() {
             </div>
           </div>
 
+          {/* Recent Activity */}
           <div style={styles.recentSection}>
             <h2 style={styles.sectionTitle}>Recent Activity</h2>
             <div style={styles.recentGrid}>
@@ -500,6 +710,64 @@ const styles = {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
     gap: '15px'
+  },
+  targetCard: {
+    background: '#f8f9fa',
+    padding: '15px',
+    borderRadius: '8px'
+  },
+  targetHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: '10px',
+    fontWeight: 'bold'
+  },
+  progressBar: {
+    height: '8px',
+    background: '#e9ecef',
+    borderRadius: '4px',
+    overflow: 'hidden',
+    marginBottom: '10px'
+  },
+  progressFill: {
+    height: '100%',
+    transition: 'width 0.3s ease'
+  },
+  predictionBox: {
+    marginTop: '10px',
+    padding: '8px',
+    background: '#e7f3ff',
+    borderRadius: '4px',
+    fontSize: '12px'
+  },
+  predictionHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: '5px',
+    fontWeight: 'bold'
+  },
+  predictionDetails: {
+    color: '#495057'
+  },
+  backlogBox: {
+    marginTop: '10px',
+    padding: '8px',
+    background: '#fff3cd',
+    borderRadius: '4px',
+    border: '1px solid #ffeeba'
+  },
+  backlogTitle: {
+    color: '#856404',
+    fontWeight: 'bold',
+    marginBottom: '5px',
+    fontSize: '12px'
+  },
+  recommendations: {
+    fontSize: '11px',
+    color: '#495057'
+  },
+  recommendation: {
+    marginBottom: '3px'
   },
   actionsSection: {
     background: 'white',
