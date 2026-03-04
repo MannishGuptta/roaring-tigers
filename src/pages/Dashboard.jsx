@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 
@@ -26,7 +26,12 @@ function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  
+  // Use refs to prevent multiple subscriptions
+  const subscriptionsRef = useRef([]);
+  const dataLoadedRef = useRef(false);
 
+  // Check authentication on mount
   useEffect(() => {
     const userData = sessionStorage.getItem('user');
     if (!userData) {
@@ -38,22 +43,35 @@ function Dashboard() {
     console.log('Logged in user:', user);
   }, [navigate]);
 
-  // Load initial data
+  // Load initial data when rm is available
   useEffect(() => {
-    if (rm) {
+    if (rm && !dataLoadedRef.current) {
+      console.log('Loading initial data for RM:', rm.id);
       loadDashboardData(rm.id, timeRange);
       loadTargets(rm.id);
+      dataLoadedRef.current = true;
     }
-  }, [rm, timeRange]);
+  }, [rm]);
 
-  // REALTIME SUBSCRIPTIONS - Fixed version
+  // Handle time range changes separately
+  useEffect(() => {
+    if (rm) {
+      console.log('Time range changed to:', timeRange);
+      loadDashboardData(rm.id, timeRange);
+    }
+  }, [timeRange]);
+
+  // REALTIME SUBSCRIPTIONS - Set up once when rm is available
   useEffect(() => {
     if (!rm) return;
 
     console.log('Setting up realtime subscriptions for RM:', rm.id);
 
-    // Create an array to store subscriptions
-    const subscriptions = [];
+    // Clean up any existing subscriptions
+    subscriptionsRef.current.forEach(sub => {
+      if (sub) supabase.removeChannel(sub);
+    });
+    subscriptionsRef.current = [];
 
     // Subscribe to Channel Partners changes
     const cpSubscription = supabase
@@ -66,12 +84,13 @@ function Dashboard() {
           filter: `rm_id=eq.${rm.id}`
         },
         () => {
+          console.log('CP changed - reloading data');
           loadDashboardData(rm.id, timeRange);
         }
       )
       .subscribe();
     
-    subscriptions.push(cpSubscription);
+    subscriptionsRef.current.push(cpSubscription);
 
     // Subscribe to Meetings changes
     const meetingsSubscription = supabase
@@ -84,12 +103,13 @@ function Dashboard() {
           filter: `rm_id=eq.${rm.id}`
         },
         () => {
+          console.log('Meeting changed - reloading data');
           loadDashboardData(rm.id, timeRange);
         }
       )
       .subscribe();
     
-    subscriptions.push(meetingsSubscription);
+    subscriptionsRef.current.push(meetingsSubscription);
 
     // Subscribe to Sales changes
     const salesSubscription = supabase
@@ -102,21 +122,23 @@ function Dashboard() {
           filter: `rm_id=eq.${rm.id}`
         },
         () => {
+          console.log('Sale changed - reloading data');
           loadDashboardData(rm.id, timeRange);
         }
       )
       .subscribe();
     
-    subscriptions.push(salesSubscription);
+    subscriptionsRef.current.push(salesSubscription);
 
-    // Cleanup subscriptions when component unmounts
+    // Cleanup on unmount
     return () => {
-      console.log('Cleaning up realtime subscriptions');
-      subscriptions.forEach(sub => {
+      console.log('Cleaning up all subscriptions');
+      subscriptionsRef.current.forEach(sub => {
         if (sub) supabase.removeChannel(sub);
       });
+      subscriptionsRef.current = [];
     };
-  }, [rm?.id]); // Only depend on rm.id, not timeRange
+  }, [rm?.id]); // Only re-run if rm.id changes
 
   const loadTargets = async (rmId) => {
     try {
