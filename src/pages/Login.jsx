@@ -1,5 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase directly in the frontend
+const supabaseUrl = 'https://ybtyvycgmahsxqclkgab.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlidHl2eWNnbWFoc3hxY2xrZ2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMTgxNjQsImV4cCI6MjA4NzU5NDE2NH0.O3qcr39duZnFxfjTE6DwFY-eQXCLCYCVZ4ijaEFiHxs';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 function Login() {
   const [phone, setPhone] = useState('');
@@ -16,35 +22,31 @@ function Login() {
     try {
       console.log('1. Attempting login with:', { phone, password });
 
-      // Use the NEW login endpoint
-      const response = await fetch('https://roaring-tigers-backend.onrender.com/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone, password }),
-      });
+      // Query Supabase directly - no backend API needed!
+      const { data, error } = await supabase
+        .from('rms')
+        .select('*')
+        .eq('phone', phone)
+        .eq('password_hash', password)
+        .single();
 
-      console.log('2. Response status:', response.status);
-      
-      const data = await response.json();
-      console.log('3. Login response data:', data);
+      console.log('2. Supabase response:', { data, error });
 
-      if (response.ok && data.success) {
-        console.log('4. Login successful for:', data.user.name);
+      if (error) {
+        console.log('3. Login failed:', error.message);
+        setError('Invalid phone or password');
+      } else if (data) {
+        console.log('4. Login successful for:', data.name);
         
         // Store user data in session
-        sessionStorage.setItem('user', JSON.stringify(data.user));
+        sessionStorage.setItem('user', JSON.stringify(data));
         
-        // Check if user is admin (you can adjust this logic)
-        if (phone === '9876543210') { // Rajesh is admin
+        // Check if user is admin based on phone number
+        if (phone === '9876543210') {
           navigate('/admin/dashboard');
         } else {
           navigate('/rm/dashboard');
         }
-      } else {
-        console.log('4. Login failed:', data.error);
-        setError(data.error || 'Invalid phone or password');
       }
     } catch (err) {
       console.error('Login error:', err);
