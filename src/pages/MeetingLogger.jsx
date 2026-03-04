@@ -1,181 +1,156 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import supabase from '../supabaseClient';
 
 function MeetingLogger() {
   const [rm, setRm] = useState(null);
   const [cps, setCps] = useState([]);
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchingData, setFetchingData] = useState(true);
   const [success, setSuccess] = useState(false);
-  const [showDealForm, setShowDealForm] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    cp_id: '',
-    meeting_type: 'prospecting', // prospecting, existing_cp, client
-    meeting_date: new Date().toISOString().slice(0, 16),
-    outcome: '', // interested, not_interested, follow_up, deal_win
-    notes: '',
-    follow_up_date: '',
-    follow_up_time: '',
-    follow_up_notes: ''
-  });
-
-  const [dealData, setDealData] = useState({
-    client_name: '',
-    client_phone: '',
-    client_email: '',
-    sale_amount: '',
-    product_service: '',
-    invoice_number: ''
-  });
-
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  const [formData, setFormData] = useState({
+    meeting_date: new Date().toISOString().split('T')[0],
+    meeting_type: 'introductory',
+    meeting_category: 'client',
+    cp_id: '',
+    client_id: '',
+    notes: '',
+    outcome: 'followup',
+    status: 'scheduled'
+  });
+
+  // Check authentication and fetch initial data
   useEffect(() => {
-    const rmData = sessionStorage.getItem('rm');
-    if (!rmData) {
+    const userData = sessionStorage.getItem('user');
+    if (!userData) {
       navigate('/');
       return;
     }
-    const rm = JSON.parse(rmData);
-    setRm(rm);
-    fetchCPs(rm.id);
+    const user = JSON.parse(userData);
+    setRm(user);
+    fetchData(user.id);
   }, [navigate]);
 
-  const fetchCPs = async (rmId) => {
+  const fetchData = async (rmId) => {
+    setFetchingData(true);
     try {
-      const response = await fetch('https://roaring-tigers-backend.onrender.com/channel_partners');
-      const allCPs = await response.json();
-      // Filter CPs for this RM
-      const rmCPs = allCPs.filter(cp => String(cp.rm_id) === String(rmId));
-      setCps(rmCPs);
+      // Fetch CPs and clients for this RM
+      const [cpResult, clientResult] = await Promise.all([
+        supabase.from('channel_partners').select('id, name').eq('rm_id', rmId),
+        supabase.from('clients').select('id, client_name').eq('rm_id', rmId)
+      ]);
+
+      if (cpResult.error) throw cpResult.error;
+      if (clientResult.error) throw clientResult.error;
+
+      setCps(cpResult.data || []);
+      setClients(clientResult.data || []);
     } catch (err) {
-      console.error('Error fetching CPs:', err);
+      console.error('Error fetching data:', err);
+      setError('Failed to load required data');
+    } finally {
+      setFetchingData(false);
     }
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
 
-  const handleDealChange = (e) => {
-    const { name, value } = e.target;
-    setDealData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleOutcomeSelect = (outcome) => {
-    setFormData(prev => ({ ...prev, outcome }));
-    if (outcome === 'deal_win') {
-      setShowDealForm(true);
-    } else {
-      setShowDealForm(false);
+    // Reset cp_id/client_id when category changes
+    if (e.target.name === 'meeting_category') {
+      setFormData(prev => ({
+        ...prev,
+        meeting_category: e.target.value,
+        cp_id: '',
+        client_id: ''
+      }));
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     setSuccess(false);
 
     try {
-      // Prepare meeting data
+      if (!rm) {
+        throw new Error('You must be logged in');
+      }
+
+      // Validate based on meeting category
+      if (formData.meeting_category === 'cp' && !formData.cp_id) {
+        throw new Error('Please select a Channel Partner');
+      }
+      if (formData.meeting_category === 'client' && !formData.client_id) {
+        throw new Error('Please select a Client');
+      }
+
+      // Prepare meeting data for Supabase
       const meetingData = {
         rm_id: rm.id,
-        cp_id: formData.cp_id,
-        meeting_type: formData.meeting_type,
         meeting_date: formData.meeting_date,
-        outcome: formData.outcome,
-        notes: formData.notes,
-        status: formData.outcome === 'follow_up' ? 'follow_up_pending' : 'completed'
+        meeting_type: formData.meeting_type,
+        meeting_category: formData.meeting_category,
+        cp_id: formData.cp_id ? parseInt(formData.cp_id) : null,
+        client_id: formData.client_id ? parseInt(formData.client_id) : null,
+        notes: formData.notes || null,
+        outcome: formData.outcome || null,
+        status: formData.status
       };
 
-      // Add follow-up if needed
-      if (formData.outcome === 'follow_up' && formData.follow_up_date && formData.follow_up_time) {
-        meetingData.follow_up_date = `${formData.follow_up_date}T${formData.follow_up_time}`;
-        meetingData.follow_up_notes = formData.follow_up_notes;
-      }
+      console.log('Submitting meeting data:', meetingData);
 
-      // Save meeting
-      const meetingResponse = await fetch('https://roaring-tigers-backend.onrender.com/meetings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(meetingData)
-      });
+      // Save to Supabase
+      const { data, error } = await supabase
+        .from('meetings')
+        .insert([meetingData])
+        .select();
 
-      if (!meetingResponse.ok) throw new Error('Failed to save meeting');
-      
-      const savedMeeting = await meetingResponse.json();
-      console.log('Meeting saved:', savedMeeting);
+      if (error) throw error;
 
-      // If deal won, save the sale
-      if (formData.outcome === 'deal_win') {
-        const saleData = {
-          rm_id: rm.id,
-          cp_id: formData.cp_id,
-          meeting_id: savedMeeting.id,
-          client_name: dealData.client_name,
-          client_phone: dealData.client_phone,
-          client_email: dealData.client_email,
-          sale_amount: parseFloat(dealData.sale_amount),
-          product_service: dealData.product_service,
-          invoice_number: dealData.invoice_number,
-          sale_date: new Date().toISOString().split('T')[0],
-          status: 'completed'
-        };
-
-        const saleResponse = await fetch('https://roaring-tigers-backend.onrender.com/sales', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(saleData)
-        });
-
-        if (!saleResponse.ok) throw new Error('Failed to save sale');
-        
-        const savedSale = await saleResponse.json();
-        console.log('Sale saved:', savedSale);
-      }
-
+      console.log('Meeting logged successfully:', data);
       setSuccess(true);
       
       // Reset form
       setFormData({
+        meeting_date: new Date().toISOString().split('T')[0],
+        meeting_type: 'introductory',
+        meeting_category: 'client',
         cp_id: '',
-        meeting_type: 'prospecting',
-        meeting_date: new Date().toISOString().slice(0, 16),
-        outcome: '',
+        client_id: '',
         notes: '',
-        follow_up_date: '',
-        follow_up_time: '',
-        follow_up_notes: ''
+        outcome: 'followup',
+        status: 'scheduled'
       });
-      setDealData({
-        client_name: '',
-        client_phone: '',
-        client_email: '',
-        sale_amount: '',
-        product_service: '',
-        invoice_number: ''
-      });
-      setShowDealForm(false);
 
-      // Hide success message after 3 seconds
-      setTimeout(() => setSuccess(false), 3000);
+      // Redirect back to dashboard after 2 seconds
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 2000);
 
     } catch (err) {
-      console.error('Error saving meeting:', err);
-      alert('Error saving meeting. Please try again.');
+      console.error('Error logging meeting:', err);
+      setError(err.message || 'Failed to log meeting. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!rm) return null;
+  if (!rm || fetchingData) {
+    return (
+      <div style={styles.loadingContainer}>
+        <div style={styles.loading}>Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>
@@ -187,291 +162,185 @@ function MeetingLogger() {
         </button>
       </div>
 
-      {/* Success Message */}
       {success && (
         <div style={styles.successMessage}>
-          ✅ Meeting logged successfully!
-          {formData.outcome === 'deal_win' && ' Deal and sale recorded!'}
+          ✅ Meeting logged successfully! Redirecting...
         </div>
       )}
 
-      {/* Main Form */}
+      {error && (
+        <div style={styles.errorMessage}>
+          ❌ {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} style={styles.form}>
-        {/* CP Selection */}
+        {/* Meeting Date */}
         <div style={styles.formGroup}>
-          <label style={styles.label}>Select Channel Partner *</label>
-          <select
-            name="cp_id"
-            value={formData.cp_id}
-            onChange={handleChange}
-            required
-            style={styles.select}
-          >
-            <option value="">-- Select a CP --</option>
-            {cps.map(cp => (
-              <option key={cp.id} value={cp.id}>
-                {cp.cp_name} - {cp.phone}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Meeting Type */}
-        <div style={styles.formGroup}>
-          <label style={styles.label}>Meeting Type *</label>
-          <div style={styles.radioGroup}>
-            <label style={styles.radioLabel}>
-              <input
-                type="radio"
-                name="meeting_type"
-                value="prospecting"
-                checked={formData.meeting_type === 'prospecting'}
-                onChange={handleChange}
-              />
-              🎯 Prospecting (New CP)
-            </label>
-            <label style={styles.radioLabel}>
-              <input
-                type="radio"
-                name="meeting_type"
-                value="existing_cp"
-                checked={formData.meeting_type === 'existing_cp'}
-                onChange={handleChange}
-              />
-              🤝 Existing CP
-            </label>
-            <label style={styles.radioLabel}>
-              <input
-                type="radio"
-                name="meeting_type"
-                value="client"
-                checked={formData.meeting_type === 'client'}
-                onChange={handleChange}
-              />
-              👔 Client Meeting
-            </label>
-          </div>
-        </div>
-
-        {/* Date and Time */}
-        <div style={styles.formGroup}>
-          <label style={styles.label}>Meeting Date & Time *</label>
+          <label style={styles.label}>Meeting Date *</label>
           <input
-            type="datetime-local"
+            type="date"
             name="meeting_date"
             value={formData.meeting_date}
             onChange={handleChange}
             required
             style={styles.input}
+            max={new Date().toISOString().split('T')[0]}
           />
         </div>
 
+        {/* Meeting Type and Category */}
+        <div style={styles.row}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Meeting Type *</label>
+            <select
+              name="meeting_type"
+              value={formData.meeting_type}
+              onChange={handleChange}
+              required
+              style={styles.select}
+            >
+              <option value="introductory">Introductory</option>
+              <option value="follow-up">Follow-up</option>
+              <option value="site visit">Site Visit</option>
+              <option value="negotiation">Negotiation</option>
+              <option value="documentation">Documentation</option>
+              <option value="training">Training</option>
+              <option value="review">Review</option>
+              <option value="strategy">Strategy</option>
+            </select>
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Meeting Category *</label>
+            <select
+              name="meeting_category"
+              value={formData.meeting_category}
+              onChange={handleChange}
+              required
+              style={styles.select}
+            >
+              <option value="prospect">Prospect (Potential CP)</option>
+              <option value="cp">Channel Partner</option>
+              <option value="client">Client</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Conditional Fields based on Category */}
+        {formData.meeting_category === 'cp' && (
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Select Channel Partner *</label>
+            <select
+              name="cp_id"
+              value={formData.cp_id}
+              onChange={handleChange}
+              required
+              style={styles.select}
+            >
+              <option value="">Choose a CP...</option>
+              {cps.map(cp => (
+                <option key={cp.id} value={cp.id}>{cp.name}</option>
+              ))}
+            </select>
+            {cps.length === 0 && (
+              <p style={styles.warning}>
+                ⚠️ No CPs found. <Link to="/onboard-cp" style={styles.link}>Onboard a CP first</Link>
+              </p>
+            )}
+          </div>
+        )}
+
+        {formData.meeting_category === 'client' && (
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Select Client *</label>
+            <select
+              name="client_id"
+              value={formData.client_id}
+              onChange={handleChange}
+              required
+              style={styles.select}
+            >
+              <option value="">Choose a Client...</option>
+              {clients.map(client => (
+                <option key={client.id} value={client.id}>{client.client_name}</option>
+              ))}
+            </select>
+            {clients.length === 0 && (
+              <p style={styles.warning}>⚠️ No clients found.</p>
+            )}
+          </div>
+        )}
+
         {/* Notes */}
         <div style={styles.formGroup}>
-          <label style={styles.label}>Meeting Notes *</label>
+          <label style={styles.label}>Meeting Notes</label>
           <textarea
             name="notes"
             value={formData.notes}
             onChange={handleChange}
-            required
-            rows="4"
             style={styles.textarea}
-            placeholder="Enter meeting details, discussion points, etc..."
+            placeholder="Enter meeting notes, discussion points, next steps..."
+            rows="4"
           />
         </div>
 
-        {/* Outcome Selection */}
-        <div style={styles.formGroup}>
-          <label style={styles.label}>Meeting Outcome *</label>
-          <div style={styles.outcomeGrid}>
-            <button
-              type="button"
-              onClick={() => handleOutcomeSelect('interested')}
-              style={{
-                ...styles.outcomeBtn,
-                background: formData.outcome === 'interested' ? '#28a745' : '#f8f9fa',
-                color: formData.outcome === 'interested' ? 'white' : '#495057'
-              }}
+        {/* Outcome and Status */}
+        <div style={styles.row}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Outcome</label>
+            <select
+              name="outcome"
+              value={formData.outcome}
+              onChange={handleChange}
+              style={styles.select}
             >
-              👍 Interested
-            </button>
-            <button
-              type="button"
-              onClick={() => handleOutcomeSelect('not_interested')}
-              style={{
-                ...styles.outcomeBtn,
-                background: formData.outcome === 'not_interested' ? '#dc3545' : '#f8f9fa',
-                color: formData.outcome === 'not_interested' ? 'white' : '#495057'
-              }}
+              <option value="followup">Follow-up Required</option>
+              <option value="deal">Deal Closed</option>
+              <option value="">Pending / No Decision</option>
+            </select>
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Status</label>
+            <select
+              name="status"
+              value={formData.status}
+              onChange={handleChange}
+              style={styles.select}
             >
-              👎 Not Interested
-            </button>
-            <button
-              type="button"
-              onClick={() => handleOutcomeSelect('follow_up')}
-              style={{
-                ...styles.outcomeBtn,
-                background: formData.outcome === 'follow_up' ? '#ffc107' : '#f8f9fa',
-                color: formData.outcome === 'follow_up' ? 'white' : '#495057'
-              }}
-            >
-              ⏰ Follow Up
-            </button>
-            <button
-              type="button"
-              onClick={() => handleOutcomeSelect('deal_win')}
-              style={{
-                ...styles.outcomeBtn,
-                background: formData.outcome === 'deal_win' ? '#17a2b8' : '#f8f9fa',
-                color: formData.outcome === 'deal_win' ? 'white' : '#495057'
-              }}
-            >
-              💰 Deal Won
-            </button>
+              <option value="scheduled">Scheduled</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
           </div>
         </div>
 
-        {/* Follow Up Fields */}
-        {formData.outcome === 'follow_up' && (
-          <div style={styles.followUpSection}>
-            <h3 style={styles.sectionTitle}>⏰ Follow Up Details</h3>
-            <div style={styles.row}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Follow Up Date *</label>
-                <input
-                  type="date"
-                  name="follow_up_date"
-                  value={formData.follow_up_date}
-                  onChange={handleChange}
-                  required
-                  style={styles.input}
-                />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Follow Up Time *</label>
-                <input
-                  type="time"
-                  name="follow_up_time"
-                  value={formData.follow_up_time}
-                  onChange={handleChange}
-                  required
-                  style={styles.input}
-                />
-              </div>
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Follow Up Notes</label>
-              <textarea
-                name="follow_up_notes"
-                value={formData.follow_up_notes}
-                onChange={handleChange}
-                rows="3"
-                style={styles.textarea}
-                placeholder="What needs to be discussed in the follow-up?"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Deal Win Fields */}
-        {showDealForm && (
-          <div style={styles.dealSection}>
-            <h3 style={styles.sectionTitle}>💰 Deal Details</h3>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Client Name *</label>
-              <input
-                type="text"
-                name="client_name"
-                value={dealData.client_name}
-                onChange={handleDealChange}
-                required
-                style={styles.input}
-                placeholder="Enter client name"
-              />
-            </div>
-            <div style={styles.row}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Client Phone</label>
-                <input
-                  type="tel"
-                  name="client_phone"
-                  value={dealData.client_phone}
-                  onChange={handleDealChange}
-                  style={styles.input}
-                  placeholder="Phone number"
-                />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Client Email</label>
-                <input
-                  type="email"
-                  name="client_email"
-                  value={dealData.client_email}
-                  onChange={handleDealChange}
-                  style={styles.input}
-                  placeholder="Email address"
-                />
-              </div>
-            </div>
-            <div style={styles.row}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Sale Amount (₹) *</label>
-                <input
-                  type="number"
-                  name="sale_amount"
-                  value={dealData.sale_amount}
-                  onChange={handleDealChange}
-                  required
-                  style={styles.input}
-                  placeholder="Amount"
-                  min="0"
-                  step="1000"
-                />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Product/Service</label>
-                <input
-                  type="text"
-                  name="product_service"
-                  value={dealData.product_service}
-                  onChange={handleDealChange}
-                  style={styles.input}
-                  placeholder="Product or service sold"
-                />
-              </div>
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Invoice Number</label>
-              <input
-                type="text"
-                name="invoice_number"
-                value={dealData.invoice_number}
-                onChange={handleDealChange}
-                style={styles.input}
-                placeholder="Invoice number (if available)"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Submit Button */}
-        <div style={styles.actions}>
+        {/* Submit Buttons */}
+        <div style={styles.buttonGroup}>
           <button type="button" onClick={() => navigate('/dashboard')} style={styles.cancelBtn}>
             Cancel
           </button>
           <button 
             type="submit" 
-            disabled={loading || !formData.outcome}
-            style={{
-              ...styles.submitBtn,
-              opacity: loading || !formData.outcome ? 0.7 : 1,
-              cursor: loading || !formData.outcome ? 'not-allowed' : 'pointer'
-            }}
+            disabled={loading}
+            style={loading ? {...styles.submitBtn, ...styles.disabled} : styles.submitBtn}
           >
-            {loading ? 'Saving...' : 'Log Meeting'}
+            {loading ? 'Logging...' : 'Log Meeting'}
           </button>
         </div>
       </form>
+
+      {/* Tips Section */}
+      <div style={styles.tips}>
+        <h3 style={styles.tipsTitle}>📝 Meeting Tips:</h3>
+        <ul style={styles.tipsList}>
+          <li>Choose the correct meeting category (Prospect/CP/Client)</li>
+          <li>Add detailed notes about discussion points</li>
+          <li>Mark outcome to track meeting effectiveness</li>
+          <li>Schedule follow-up meetings if needed</li>
+        </ul>
+      </div>
     </div>
   );
 }
@@ -483,11 +352,21 @@ const styles = {
     margin: '0 auto',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   },
+  loadingContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100vh'
+  },
+  loading: {
+    fontSize: '18px',
+    color: '#666'
+  },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '20px',
+    marginBottom: '30px',
     padding: '20px',
     background: 'white',
     borderRadius: '10px',
@@ -495,7 +374,6 @@ const styles = {
   },
   title: {
     fontSize: '24px',
-    color: '#333',
     margin: 0
   },
   backBtn: {
@@ -508,30 +386,45 @@ const styles = {
     fontSize: '14px'
   },
   successMessage: {
+    padding: '15px',
     background: '#d4edda',
     color: '#155724',
-    padding: '15px',
+    border: '1px solid #c3e6cb',
     borderRadius: '5px',
     marginBottom: '20px',
-    textAlign: 'center',
-    fontSize: '16px',
-    border: '1px solid #c3e6cb'
+    textAlign: 'center'
+  },
+  errorMessage: {
+    padding: '15px',
+    background: '#f8d7da',
+    color: '#721c24',
+    border: '1px solid #f5c6cb',
+    borderRadius: '5px',
+    marginBottom: '20px',
+    textAlign: 'center'
   },
   form: {
     background: 'white',
     padding: '30px',
     borderRadius: '10px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+    marginBottom: '20px'
   },
   formGroup: {
+    flex: 1,
     marginBottom: '20px'
+  },
+  row: {
+    display: 'flex',
+    gap: '20px',
+    marginBottom: '0'
   },
   label: {
     display: 'block',
-    marginBottom: '5px',
+    marginBottom: '8px',
     fontWeight: 'bold',
-    color: '#495057',
-    fontSize: '14px'
+    fontSize: '14px',
+    color: '#495057'
   },
   input: {
     width: '100%',
@@ -539,7 +432,8 @@ const styles = {
     border: '2px solid #dee2e6',
     borderRadius: '6px',
     fontSize: '14px',
-    boxSizing: 'border-box'
+    boxSizing: 'border-box',
+    transition: 'border-color 0.3s'
   },
   select: {
     width: '100%',
@@ -548,7 +442,7 @@ const styles = {
     borderRadius: '6px',
     fontSize: '14px',
     background: 'white',
-    boxSizing: 'border-box'
+    cursor: 'pointer'
   },
   textarea: {
     width: '100%',
@@ -557,83 +451,67 @@ const styles = {
     borderRadius: '6px',
     fontSize: '14px',
     fontFamily: 'inherit',
+    boxSizing: 'border-box',
     resize: 'vertical',
-    boxSizing: 'border-box'
+    minHeight: '100px'
   },
-  radioGroup: {
-    display: 'flex',
-    gap: '20px',
-    flexWrap: 'wrap'
-  },
-  radioLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '5px',
-    cursor: 'pointer'
-  },
-  outcomeGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-    gap: '10px'
-  },
-  outcomeBtn: {
-    padding: '12px',
-    border: '2px solid #dee2e6',
-    borderRadius: '6px',
-    fontSize: '14px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    transition: 'all 0.3s'
-  },
-  followUpSection: {
-    marginTop: '20px',
-    padding: '20px',
-    background: '#fff3cd',
-    borderRadius: '6px',
-    border: '1px solid #ffeeba'
-  },
-  dealSection: {
-    marginTop: '20px',
-    padding: '20px',
-    background: '#d1ecf1',
-    borderRadius: '6px',
-    border: '1px solid #bee5eb'
-  },
-  sectionTitle: {
-    margin: '0 0 15px 0',
+  warning: {
+    marginTop: '5px',
+    fontSize: '12px',
     color: '#856404'
   },
-  row: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '15px'
+  link: {
+    color: '#007bff',
+    textDecoration: 'none'
   },
-  actions: {
+  buttonGroup: {
     display: 'flex',
-    justifyContent: 'flex-end',
-    gap: '15px',
-    marginTop: '30px',
-    paddingTop: '20px',
-    borderTop: '1px solid #dee2e6'
+    gap: '10px',
+    marginTop: '30px'
   },
   cancelBtn: {
-    padding: '12px 24px',
+    flex: 1,
+    padding: '12px',
     background: 'white',
-    color: '#6c757d',
     border: '2px solid #dee2e6',
     borderRadius: '6px',
-    fontSize: '14px',
+    fontSize: '16px',
     fontWeight: 'bold',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'background-color 0.3s'
   },
   submitBtn: {
-    padding: '12px 24px',
+    flex: 2,
+    padding: '12px',
     background: '#28a745',
     color: 'white',
     border: 'none',
     borderRadius: '6px',
-    fontSize: '14px',
-    fontWeight: 'bold'
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'background-color 0.3s'
+  },
+  disabled: {
+    opacity: 0.6,
+    cursor: 'not-allowed'
+  },
+  tips: {
+    background: '#e7f3ff',
+    padding: '20px',
+    borderRadius: '10px',
+    border: '1px solid #b8daff'
+  },
+  tipsTitle: {
+    margin: '0 0 10px 0',
+    color: '#004085',
+    fontSize: '16px'
+  },
+  tipsList: {
+    margin: 0,
+    paddingLeft: '20px',
+    color: '#004085',
+    lineHeight: '1.6'
   }
 };
 
