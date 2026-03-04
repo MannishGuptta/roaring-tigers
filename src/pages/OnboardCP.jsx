@@ -1,23 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import supabase from '../supabaseClient';
 
 function OnboardCP() {
   const [rm, setRm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
   const [panFile, setPanFile] = useState(null);
   const [aadharFile, setAadharFile] = useState(null);
   
   const [formData, setFormData] = useState({
-    cp_name: '',
+    name: '',  // Changed from cp_name to match DB
     phone: '',
     email: '',
     address: '',
-    cp_type: 'individual',
-    operating_markets: '',
-    industry: '',
-    expected_monthly_business: '',
-    // Document tracking fields
+    commission_rate: 5.0, // Added to match DB
+    status: 'active',
+    join_date: new Date().toISOString().split('T')[0],
+    gst_number: '',
     pan_number: '',
     aadhar_number: '',
     pan_verified: false,
@@ -27,13 +28,15 @@ function OnboardCP() {
   
   const navigate = useNavigate();
 
+  // Check authentication
   useEffect(() => {
-    const rmData = sessionStorage.getItem('rm');
-    if (!rmData) {
+    const userData = sessionStorage.getItem('user');
+    if (!userData) {
       navigate('/');
       return;
     }
-    setRm(JSON.parse(rmData));
+    const user = JSON.parse(userData);
+    setRm(user);
   }, [navigate]);
 
   const handleChange = (e) => {
@@ -48,8 +51,6 @@ function OnboardCP() {
     const file = e.target.files[0];
     if (file) {
       setPanFile(file);
-      // In a real app, you'd upload to a server here
-      // For now, we'll just store the filename
       console.log('PAN card selected:', file.name);
     }
   };
@@ -65,46 +66,55 @@ function OnboardCP() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     setSuccess(false);
 
     try {
-      // Prepare CP data
+      if (!rm) {
+        throw new Error('You must be logged in');
+      }
+
+      // Prepare CP data for Supabase
       const cpData = {
-        ...formData,
+        name: formData.name,
+        phone: formData.phone,
+        email: formData.email || null,
+        address: formData.address || null,
         rm_id: rm.id,
-        expected_monthly_business: parseFloat(formData.expected_monthly_business) || 0,
-        onboard_date: new Date().toISOString().split('T')[0],
-        status: 'active',
-        // Document status
-        pan_filename: panFile ? panFile.name : null,
-        aadhar_filename: aadharFile ? aadharFile.name : null,
+        commission_rate: parseFloat(formData.commission_rate) || 0,
+        status: formData.status,
+        join_date: formData.join_date,
+        gst_number: formData.gst_number || null,
+        pan_number: formData.pan_number || null,
+        aadhar_number: formData.aadhar_number || null,
+        pan_verified: formData.pan_verified,
+        aadhar_verified: formData.aadhar_verified,
         documents_submitted: !!(panFile || aadharFile || formData.pan_number || formData.aadhar_number)
       };
 
       console.log('Submitting CP data:', cpData);
 
-      const response = await fetch('https://roaring-tigers-backend.onrender.com/channel_partners', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cpData)
-      });
+      // Save to Supabase
+      const { data, error } = await supabase
+        .from('channel_partners')
+        .insert([cpData])
+        .select();
 
-      if (!response.ok) {
-        throw new Error('Failed to save CP');
-      }
+      if (error) throw error;
 
+      console.log('CP added successfully:', data);
       setSuccess(true);
       
       // Reset form
       setFormData({
-        cp_name: '',
+        name: '',
         phone: '',
         email: '',
         address: '',
-        cp_type: 'individual',
-        operating_markets: '',
-        industry: '',
-        expected_monthly_business: '',
+        commission_rate: 5.0,
+        status: 'active',
+        join_date: new Date().toISOString().split('T')[0],
+        gst_number: '',
         pan_number: '',
         aadhar_number: '',
         pan_verified: false,
@@ -114,11 +124,14 @@ function OnboardCP() {
       setPanFile(null);
       setAadharFile(null);
 
-      setTimeout(() => setSuccess(false), 3000);
+      // Redirect back to dashboard after 2 seconds
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 2000);
 
     } catch (err) {
       console.error('Error saving CP:', err);
-      alert('Error saving CP. Please try again.');
+      setError(err.message || 'Failed to add CP. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -137,7 +150,13 @@ function OnboardCP() {
 
       {success && (
         <div style={styles.successMessage}>
-          ✅ Channel Partner onboarded successfully!
+          ✅ Channel Partner onboarded successfully! Redirecting...
+        </div>
+      )}
+
+      {error && (
+        <div style={styles.errorMessage}>
+          ❌ {error}
         </div>
       )}
 
@@ -151,8 +170,8 @@ function OnboardCP() {
               <label style={styles.label}>CP Name *</label>
               <input
                 type="text"
-                name="cp_name"
-                value={formData.cp_name}
+                name="name"
+                value={formData.name}
                 onChange={handleChange}
                 required
                 style={styles.input}
@@ -197,63 +216,35 @@ function OnboardCP() {
             </div>
 
             <div style={styles.formGroup}>
-              <label style={styles.label}>CP Type *</label>
-              <select
-                name="cp_type"
-                value={formData.cp_type}
+              <label style={styles.label}>Commission Rate (%)</label>
+              <input
+                type="number"
+                name="commission_rate"
+                value={formData.commission_rate}
                 onChange={handleChange}
-                required
-                style={styles.select}
-              >
-                <option value="individual">Individual</option>
-                <option value="company">Company</option>
-              </select>
+                step="0.1"
+                min="0"
+                max="100"
+                style={styles.input}
+              />
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>GST Number</label>
+              <input
+                type="text"
+                name="gst_number"
+                value={formData.gst_number}
+                onChange={handleChange}
+                style={styles.input}
+                placeholder="Enter GST number (optional)"
+              />
             </div>
           </div>
 
-          {/* Right Column - Business & Documents */}
+          {/* Right Column - Documents */}
           <div style={styles.column}>
-            <h3 style={styles.sectionTitle}>Business Details</h3>
-            
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Operating Markets</label>
-              <input
-                type="text"
-                name="operating_markets"
-                value={formData.operating_markets}
-                onChange={handleChange}
-                style={styles.input}
-                placeholder="e.g., Mumbai, Delhi, Bangalore"
-              />
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Industry</label>
-              <input
-                type="text"
-                name="industry"
-                value={formData.industry}
-                onChange={handleChange}
-                style={styles.input}
-                placeholder="e.g., Real Estate, Insurance, Banking"
-              />
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Expected Monthly Business (₹)</label>
-              <input
-                type="number"
-                name="expected_monthly_business"
-                value={formData.expected_monthly_business}
-                onChange={handleChange}
-                style={styles.input}
-                placeholder="Enter expected amount"
-                min="0"
-                step="1000"
-              />
-            </div>
-
-            <h3 style={{...styles.sectionTitle, marginTop: '20px'}}>Document Details</h3>
+            <h3 style={styles.sectionTitle}>Document Details</h3>
             
             <div style={styles.formGroup}>
               <label style={styles.label}>PAN Number</label>
@@ -327,6 +318,30 @@ function OnboardCP() {
                 Aadhar verified
               </label>
             </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Join Date</label>
+              <input
+                type="date"
+                name="join_date"
+                value={formData.join_date}
+                onChange={handleChange}
+                style={styles.input}
+              />
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Status</label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                style={styles.select}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -398,6 +413,16 @@ const styles = {
     fontSize: '16px',
     border: '1px solid #c3e6cb'
   },
+  errorMessage: {
+    background: '#f8d7da',
+    color: '#721c24',
+    padding: '15px',
+    borderRadius: '5px',
+    marginBottom: '20px',
+    textAlign: 'center',
+    fontSize: '16px',
+    border: '1px solid #f5c6cb'
+  },
   form: {
     background: 'white',
     padding: '30px',
@@ -438,14 +463,16 @@ const styles = {
     border: '2px solid #dee2e6',
     borderRadius: '6px',
     fontSize: '14px',
-    outline: 'none'
+    outline: 'none',
+    transition: 'border-color 0.3s'
   },
   select: {
     padding: '12px',
     border: '2px solid #dee2e6',
     borderRadius: '6px',
     fontSize: '14px',
-    background: 'white'
+    background: 'white',
+    cursor: 'pointer'
   },
   uploadGroup: {
     display: 'flex',
@@ -456,7 +483,8 @@ const styles = {
     padding: '8px',
     border: '2px dashed #dee2e6',
     borderRadius: '6px',
-    background: '#f8f9fa'
+    background: '#f8f9fa',
+    cursor: 'pointer'
   },
   fileName: {
     fontSize: '12px',
@@ -489,7 +517,8 @@ const styles = {
     borderRadius: '6px',
     fontSize: '14px',
     fontWeight: 'bold',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'background-color 0.3s'
   },
   submitBtn: {
     padding: '12px 24px',
@@ -498,7 +527,8 @@ const styles = {
     border: 'none',
     borderRadius: '6px',
     fontSize: '14px',
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    transition: 'background-color 0.3s'
   },
   tips: {
     background: '#e7f3ff',
