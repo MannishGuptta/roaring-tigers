@@ -4,142 +4,199 @@ import { useNavigate } from 'react-router-dom';
 function Login() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
       console.log('1. Attempting login with:', { phone, password });
-      
-      const response = await fetch('https://roaring-tigers-backend.onrender.com/rms');
+
+      // Use the NEW login endpoint
+      const response = await fetch('https://roaring-tigers-backend.onrender.com/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phone, password }),
+      });
+
       console.log('2. Response status:', response.status);
       
-      const rms = await response.json();
-      console.log('3. Raw RM data:', rms);
-      console.log('4. Number of RMs:', rms.length);
-      console.log('5. First RM sample:', rms[0]);
-      
-      // Check each field carefully
-      const rm = rms.find(r => {
-        console.log('Comparing:', {
-          rmPhone: r.phone,
-          inputPhone: phone,
-          phoneMatch: String(r.phone) === String(phone),
-          rmPassword: r.password,
-          inputPassword: password,
-          passwordMatch: String(r.password) === String(password)
-        });
-        return String(r.phone) === String(phone) && String(r.password) === String(password);
-      });
-      
-      console.log('6. Found RM:', rm);
-      
-      if (rm) {
-        console.log('7. Login successful for:', rm.name);
-        sessionStorage.setItem('rm', JSON.stringify(rm));
-        navigate('/dashboard');
+      const data = await response.json();
+      console.log('3. Login response data:', data);
+
+      if (response.ok && data.success) {
+        console.log('4. Login successful for:', data.user.name);
+        
+        // Store user data in session
+        sessionStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Check if user is admin (you can adjust this logic)
+        if (phone === '9876543210') { // Rajesh is admin
+          navigate('/admin/dashboard');
+        } else {
+          navigate('/rm/dashboard');
+        }
       } else {
-        console.log('7. No matching RM found');
-        setError('Invalid phone or password');
+        console.log('4. Login failed:', data.error);
+        setError(data.error || 'Invalid phone or password');
       }
     } catch (err) {
-      console.error('8. Login error:', err);
-      setError('Connection error: ' + err.message);
+      console.error('Login error:', err);
+      setError('Network error. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      height: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-    }}>
-      <div style={{
-        background: 'white',
-        padding: '40px',
-        borderRadius: '10px',
-        width: '350px',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
-      }}>
-        <h1 style={{ textAlign: 'center', color: '#333', marginBottom: '10px' }}>
-          🦁 Roaring Tigers
-        </h1>
-        <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
-          Sales CRM
-        </p>
+    <div style={styles.container}>
+      <div style={styles.loginBox}>
+        <h1 style={styles.title}>Roaring Tigers</h1>
+        <p style={styles.subtitle}>Sales CRM</p>
         
-        <form onSubmit={handleLogin}>
-          <input
-            type="tel"
-            placeholder="Phone Number"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '12px',
-              margin: '10px 0',
-              border: '2px solid #ddd',
-              borderRadius: '5px'
-            }}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '12px',
-              margin: '10px 0',
-              border: '2px solid #ddd',
-              borderRadius: '5px'
-            }}
-            required
-          />
-          {error && <p style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
-          <button
-            type="submit"
+        <form onSubmit={handleSubmit} style={styles.form}>
+          <div style={styles.inputGroup}>
+            <input
+              type="tel"
+              placeholder="Phone Number"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              style={styles.input}
+              required
+              disabled={loading}
+            />
+          </div>
+          
+          <div style={styles.inputGroup}>
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={styles.input}
+              required
+              disabled={loading}
+            />
+          </div>
+          
+          {error && (
+            <div style={styles.errorMessage}>
+              {error}
+            </div>
+          )}
+          
+          <button 
+            type="submit" 
+            style={styles.button}
             disabled={loading}
-            style={{
-              width: '100%',
-              padding: '12px',
-              background: '#667eea',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              fontSize: '16px',
-              cursor: 'pointer',
-              marginTop: '10px'
-            }}
           >
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
         
-        <div style={{
-          marginTop: '20px',
-          padding: '10px',
-          background: '#f8f9fa',
-          borderRadius: '5px',
-          fontSize: '14px'
-        }}>
-          <strong>Demo Credentials:</strong><br />
-          Phone: 9876543210<br />
-          Password: rm123
+        <div style={styles.demoCredentials}>
+          <p style={styles.demoTitle}>Demo Credentials:</p>
+          <p style={styles.demoText}>Phone: 9876543210</p>
+          <p style={styles.demoText}>Password: rm123</p>
         </div>
       </div>
     </div>
   );
 }
+
+const styles = {
+  container: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100vh',
+    backgroundColor: '#f5f5f5',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  },
+  loginBox: {
+    backgroundColor: 'white',
+    padding: '40px',
+    borderRadius: '10px',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+    width: '100%',
+    maxWidth: '400px'
+  },
+  title: {
+    fontSize: '28px',
+    fontWeight: 'bold',
+    color: '#333',
+    margin: '0 0 5px 0',
+    textAlign: 'center'
+  },
+  subtitle: {
+    fontSize: '14px',
+    color: '#666',
+    margin: '0 0 30px 0',
+    textAlign: 'center'
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '15px'
+  },
+  inputGroup: {
+    width: '100%'
+  },
+  input: {
+    width: '100%',
+    padding: '12px 15px',
+    border: '1px solid #dee2e6',
+    borderRadius: '5px',
+    fontSize: '16px',
+    boxSizing: 'border-box',
+    outline: 'none',
+    transition: 'border-color 0.3s'
+  },
+  button: {
+    width: '100%',
+    padding: '12px',
+    backgroundColor: '#3498db',
+    color: 'white',
+    border: 'none',
+    borderRadius: '5px',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'background-color 0.3s',
+    marginTop: '10px'
+  },
+  errorMessage: {
+    backgroundColor: '#f8d7da',
+    color: '#721c24',
+    padding: '10px',
+    borderRadius: '5px',
+    fontSize: '14px',
+    textAlign: 'center'
+  },
+  demoCredentials: {
+    marginTop: '30px',
+    padding: '20px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '5px',
+    textAlign: 'center'
+  },
+  demoTitle: {
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#495057',
+    margin: '0 0 10px 0'
+  },
+  demoText: {
+    fontSize: '13px',
+    color: '#666',
+    margin: '5px 0'
+  }
+};
 
 export default Login;
