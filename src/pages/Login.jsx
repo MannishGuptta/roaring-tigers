@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createClient } from '@supabase/supabase-js';
+import supabase from '../supabaseClient';
+
+function Login() {
 
 // Initialize Supabase directly in the frontend
 const supabaseUrl = 'https://ybtyvycgmahsxqclkgab.supabase.co';
