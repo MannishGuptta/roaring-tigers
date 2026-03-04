@@ -1,185 +1,202 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import supabase from '../supabaseClient';
 
 function MyCPs() {
   const [rm, setRm] = useState(null);
   const [cps, setCps] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [filter, setFilter] = useState('');
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  // Check authentication on mount
   useEffect(() => {
-    const rmData = sessionStorage.getItem('rm');
-    if (!rmData) {
+    const userData = sessionStorage.getItem('user');
+    if (!userData) {
       navigate('/');
       return;
     }
-    const rm = JSON.parse(rmData);
-    console.log('Logged in RM:', rm);
-    setRm(rm);
-    fetchCPs(rm.id);
+    const user = JSON.parse(userData);
+    setRm(user);
+    fetchCPs(user.id);
   }, [navigate]);
 
   const fetchCPs = async (rmId) => {
-    setLoading(true);
-    setError(null);
     try {
-      console.log('Fetching CPs for RM ID:', rmId);
-      
-      // First, get ALL channel partners
-      const response = await fetch('https://roaring-tigers-backend.onrender.com/channel_partners');
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        throw new Error(`Server returned ${response.status}`);
-      }
-      
-      const allCPs = await response.json();
-      console.log('All CPs:', allCPs);
-      
-      // Filter manually to handle string/number comparison
-      const rmCPs = allCPs.filter(cp => {
-        // Convert both to string for comparison
-        return String(cp.rm_id) === String(rmId);
-      });
-      
-      console.log('Filtered CPs for RM:', rmCPs);
-      setCps(rmCPs);
+      const { data, error } = await supabase
+        .from('channel_partners')
+        .select('*')
+        .eq('rm_id', rmId)
+        .order('join_date', { ascending: false });
+
+      if (error) throw error;
+      setCps(data || []);
     } catch (err) {
       console.error('Error fetching CPs:', err);
-      setError(err.message);
+      setError('Failed to load channel partners');
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredCPs = cps.filter(cp => 
-    cp.cp_name?.toLowerCase().includes(filter.toLowerCase()) ||
-    cp.phone?.includes(filter) ||
-    (cp.email && cp.email.toLowerCase().includes(filter.toLowerCase()))
-  );
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount || 0);
+  };
 
   if (!rm) return null;
-
-  if (error) {
-    return (
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <h1 style={styles.title}>👥 My Channel Partners</h1>
-          <button onClick={() => navigate('/dashboard')} style={styles.backBtn}>
-            ← Back to Dashboard
-          </button>
-        </div>
-        <div style={styles.errorState}>
-          <p style={styles.errorText}>Error: {error}</p>
-          <button onClick={() => fetchCPs(rm.id)} style={styles.retryBtn}>
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div style={styles.container}>
       {/* Header */}
       <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>👥 My Channel Partners</h1>
-          <p style={styles.subtitle}>
-            {loading ? 'Loading...' : `Total: ${cps.length} CPs`}
-          </p>
-        </div>
-        <div style={styles.headerActions}>
-          <button 
-            onClick={() => navigate('/onboard-cp')} 
-            style={styles.addBtn}
-          >
-            ➕ Add New CP
-          </button>
-          <button 
-            onClick={() => navigate('/dashboard')} 
-            style={styles.backBtn}
-          >
-            ← Dashboard
+        <h1 style={styles.title}>👥 My Channel Partners</h1>
+        <div style={styles.headerButtons}>
+          <Link to="/onboard-cp" style={{ textDecoration: 'none' }}>
+            <button style={styles.addBtn}>➕ Add New CP</button>
+          </Link>
+          <button onClick={() => navigate('/dashboard')} style={styles.backBtn}>
+            ← Back to Dashboard
           </button>
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div style={styles.searchContainer}>
-        <input
-          type="text"
-          placeholder="Search by name, phone or email..."
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          style={styles.searchInput}
-        />
-      </div>
+      {error && (
+        <div style={styles.errorMessage}>
+          ❌ {error}
+        </div>
+      )}
 
-      {/* CP List */}
       {loading ? (
-        <div style={styles.loading}>Loading...</div>
-      ) : filteredCPs.length === 0 ? (
-        <div style={styles.emptyState}>
-          <p style={styles.emptyText}>
-            {cps.length === 0 
-              ? "You haven't onboarded any Channel Partners yet" 
-              : "No matching Channel Partners found"}
-          </p>
-          <button onClick={() => navigate('/onboard-cp')} style={styles.emptyBtn}>
-            Onboard Your First CP
-          </button>
+        <div style={styles.loadingContainer}>
+          <div style={styles.loading}>Loading your channel partners...</div>
         </div>
       ) : (
-        <div style={styles.cpGrid}>
-          {filteredCPs.map(cp => (
-            <div key={cp.id} style={styles.cpCard}>
-              <div style={styles.cpHeader}>
-                <h3 style={styles.cpName}>{cp.cp_name}</h3>
-                <span style={{
-                  ...styles.cpType,
-                  background: cp.cp_type === 'company' ? '#e7f3ff' : '#f0f0f0',
-                  color: cp.cp_type === 'company' ? '#004085' : '#495057'
-                }}>
-                  {cp.cp_type === 'company' ? '🏢 Company' : '👤 Individual'}
-                </span>
-              </div>
-              
-              <div style={styles.cpDetails}>
-                <p style={styles.detailItem}><strong>📞</strong> {cp.phone}</p>
-                {cp.email && <p style={styles.detailItem}><strong>✉️</strong> {cp.email}</p>}
-                {cp.address && <p style={styles.detailItem}><strong>📍</strong> {cp.address}</p>}
-                {cp.operating_markets && (
-                  <p style={styles.detailItem}><strong>🌍 Markets:</strong> {cp.operating_markets}</p>
-                )}
-                {cp.industry && (
-                  <p style={styles.detailItem}><strong>🏭 Industry:</strong> {cp.industry}</p>
-                )}
-                {cp.expected_monthly_business > 0 && (
-                  <p style={styles.detailItem}>
-                    <strong>💰 Expected Monthly:</strong> ₹{Number(cp.expected_monthly_business).toLocaleString()}
-                  </p>
-                )}
-              </div>
-              
-              <div style={styles.cpFooter}>
-                <span style={styles.onboardDate}>
-                  📅 Onboarded: {new Date(cp.onboard_date).toLocaleDateString()}
-                </span>
-                <div style={styles.cpActions}>
-                  <button style={styles.actionBtn} onClick={() => alert('Meeting Logger coming soon!')}>
-                    📝 Log Meeting
-                  </button>
-                  <button style={styles.actionBtn} onClick={() => alert('Details view coming soon!')}>
-                    📊 View Details
-                  </button>
-                </div>
+        <>
+          {/* Summary Stats */}
+          <div style={styles.statsGrid}>
+            <div style={styles.statCard}>
+              <div style={styles.statIcon}>📊</div>
+              <div>
+                <div style={styles.statValue}>{cps.length}</div>
+                <div style={styles.statLabel}>Total CPs</div>
               </div>
             </div>
-          ))}
-        </div>
+            <div style={styles.statCard}>
+              <div style={styles.statIcon}>✅</div>
+              <div>
+                <div style={styles.statValue}>{cps.filter(cp => cp.status === 'active').length}</div>
+                <div style={styles.statLabel}>Active</div>
+              </div>
+            </div>
+            <div style={styles.statCard}>
+              <div style={styles.statIcon}>⏸️</div>
+              <div>
+                <div style={styles.statValue}>{cps.filter(cp => cp.status !== 'active').length}</div>
+                <div style={styles.statLabel}>Inactive</div>
+              </div>
+            </div>
+          </div>
+
+          {/* CP List */}
+          {cps.length === 0 ? (
+            <div style={styles.emptyState}>
+              <p style={styles.emptyStateText}>No channel partners yet.</p>
+              <Link to="/onboard-cp" style={{ textDecoration: 'none' }}>
+                <button style={styles.emptyStateBtn}>➕ Add Your First CP</button>
+              </Link>
+            </div>
+          ) : (
+            <div style={styles.cpGrid}>
+              {cps.map(cp => (
+                <div key={cp.id} style={styles.cpCard}>
+                  <div style={styles.cpHeader}>
+                    <h3 style={styles.cpName}>{cp.name}</h3>
+                    <span style={{
+                      ...styles.statusBadge,
+                      background: cp.status === 'active' ? '#d4edda' : '#f8d7da',
+                      color: cp.status === 'active' ? '#155724' : '#721c24'
+                    }}>
+                      {cp.status === 'active' ? '🟢 Active' : '🔴 Inactive'}
+                    </span>
+                  </div>
+                  
+                  <div style={styles.cpDetails}>
+                    <div style={styles.detailRow}>
+                      <span style={styles.detailLabel}>📞 Phone:</span>
+                      <span style={styles.detailValue}>{cp.phone}</span>
+                    </div>
+                    
+                    <div style={styles.detailRow}>
+                      <span style={styles.detailLabel}>✉️ Email:</span>
+                      <span style={styles.detailValue}>{cp.email || 'N/A'}</span>
+                    </div>
+                    
+                    <div style={styles.detailRow}>
+                      <span style={styles.detailLabel}>📍 Address:</span>
+                      <span style={styles.detailValue}>{cp.address || 'N/A'}</span>
+                    </div>
+                    
+                    <div style={styles.detailRow}>
+                      <span style={styles.detailLabel}>💰 Commission:</span>
+                      <span style={styles.detailValue}>{cp.commission_rate || 0}%</span>
+                    </div>
+                    
+                    {cp.gst_number && (
+                      <div style={styles.detailRow}>
+                        <span style={styles.detailLabel}>🔢 GST:</span>
+                        <span style={styles.detailValue}>{cp.gst_number}</span>
+                      </div>
+                    )}
+                    
+                    <div style={styles.detailRow}>
+                      <span style={styles.detailLabel}>📅 Joined:</span>
+                      <span style={styles.detailValue}>{formatDate(cp.join_date)}</span>
+                    </div>
+
+                    {/* Document Status */}
+                    {(cp.pan_number || cp.aadhar_number) && (
+                      <div style={styles.docSection}>
+                        <div style={styles.docTitle}>📋 Documents</div>
+                        {cp.pan_number && (
+                          <div style={styles.docRow}>
+                            <span>PAN:</span>
+                            <span style={styles.docValue}>
+                              {cp.pan_number} 
+                              {cp.pan_verified && <span style={styles.verified}> ✓</span>}
+                            </span>
+                          </div>
+                        )}
+                        {cp.aadhar_number && (
+                          <div style={styles.docRow}>
+                            <span>Aadhar:</span>
+                            <span style={styles.docValue}>
+                              {cp.aadhar_number}
+                              {cp.aadhar_verified && <span style={styles.verified}> ✓</span>}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -196,7 +213,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '20px',
+    marginBottom: '30px',
     padding: '20px',
     background: 'white',
     borderRadius: '10px',
@@ -204,15 +221,9 @@ const styles = {
   },
   title: {
     fontSize: '24px',
-    color: '#333',
-    margin: '0 0 5px 0'
-  },
-  subtitle: {
-    fontSize: '14px',
-    color: '#666',
     margin: 0
   },
-  headerActions: {
+  headerButtons: {
     display: 'flex',
     gap: '10px'
   },
@@ -223,7 +234,8 @@ const styles = {
     border: 'none',
     borderRadius: '5px',
     cursor: 'pointer',
-    fontSize: '14px'
+    fontSize: '14px',
+    fontWeight: 'bold'
   },
   backBtn: {
     padding: '10px 20px',
@@ -234,43 +246,49 @@ const styles = {
     cursor: 'pointer',
     fontSize: '14px'
   },
-  searchContainer: {
+  errorMessage: {
+    padding: '15px',
+    background: '#f8d7da',
+    color: '#721c24',
+    border: '1px solid #f5c6cb',
+    borderRadius: '5px',
     marginBottom: '20px'
   },
-  searchInput: {
-    width: '100%',
-    padding: '15px',
-    border: '2px solid #dee2e6',
-    borderRadius: '8px',
-    fontSize: '16px',
-    boxSizing: 'border-box'
+  loadingContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '300px'
   },
   loading: {
-    textAlign: 'center',
-    padding: '40px',
     fontSize: '18px',
     color: '#666'
   },
-  errorState: {
-    textAlign: 'center',
-    padding: '60px',
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+    gap: '15px',
+    marginBottom: '30px'
+  },
+  statCard: {
     background: 'white',
-    borderRadius: '10px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+    padding: '15px',
+    borderRadius: '8px',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px'
   },
-  errorText: {
-    fontSize: '16px',
-    color: '#dc3545',
-    marginBottom: '20px'
+  statIcon: {
+    fontSize: '24px'
   },
-  retryBtn: {
-    padding: '10px 30px',
-    background: '#667eea',
-    color: 'white',
-    border: 'none',
-    borderRadius: '5px',
-    fontSize: '14px',
-    cursor: 'pointer'
+  statValue: {
+    fontSize: '20px',
+    fontWeight: 'bold'
+  },
+  statLabel: {
+    fontSize: '12px',
+    color: '#666'
   },
   emptyState: {
     textAlign: 'center',
@@ -279,18 +297,19 @@ const styles = {
     borderRadius: '10px',
     boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
   },
-  emptyText: {
+  emptyStateText: {
     fontSize: '16px',
     color: '#666',
     marginBottom: '20px'
   },
-  emptyBtn: {
-    padding: '12px 30px',
-    background: '#667eea',
+  emptyStateBtn: {
+    padding: '12px 24px',
+    background: '#28a745',
     color: 'white',
     border: 'none',
     borderRadius: '5px',
     fontSize: '16px',
+    fontWeight: 'bold',
     cursor: 'pointer'
   },
   cpGrid: {
@@ -300,60 +319,67 @@ const styles = {
   },
   cpCard: {
     background: 'white',
+    padding: '20px',
     borderRadius: '10px',
     boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-    overflow: 'hidden'
+    transition: 'transform 0.2s, boxShadow 0.2s'
   },
   cpHeader: {
-    padding: '15px',
-    background: '#f8f9fa',
-    borderBottom: '1px solid #dee2e6',
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    marginBottom: '15px',
+    paddingBottom: '10px',
+    borderBottom: '1px solid #dee2e6'
   },
   cpName: {
-    margin: 0,
     fontSize: '18px',
-    color: '#333'
+    margin: 0
   },
-  cpType: {
+  statusBadge: {
     padding: '4px 8px',
     borderRadius: '4px',
     fontSize: '12px',
     fontWeight: 'bold'
   },
   cpDetails: {
-    padding: '15px'
+    fontSize: '14px',
+    lineHeight: '1.6'
   },
-  detailItem: {
-    margin: '8px 0',
-    color: '#495057',
-    fontSize: '14px'
-  },
-  cpFooter: {
-    padding: '15px',
-    background: '#f8f9fa',
-    borderTop: '1px solid #dee2e6'
-  },
-  onboardDate: {
-    display: 'block',
-    fontSize: '12px',
-    color: '#6c757d',
-    marginBottom: '10px'
-  },
-  cpActions: {
+  detailRow: {
     display: 'flex',
-    gap: '10px'
+    justifyContent: 'space-between',
+    marginBottom: '8px'
   },
-  actionBtn: {
-    flex: 1,
-    padding: '8px',
-    background: 'white',
-    border: '1px solid #dee2e6',
-    borderRadius: '5px',
+  detailLabel: {
+    color: '#666',
+    fontWeight: 'bold'
+  },
+  detailValue: {
+    color: '#333'
+  },
+  docSection: {
+    marginTop: '10px',
+    paddingTop: '10px',
+    borderTop: '1px dashed #dee2e6'
+  },
+  docTitle: {
+    fontWeight: 'bold',
+    marginBottom: '5px',
+    color: '#495057'
+  },
+  docRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
     fontSize: '12px',
-    cursor: 'pointer'
+    marginBottom: '3px'
+  },
+  docValue: {
+    fontFamily: 'monospace'
+  },
+  verified: {
+    color: '#28a745',
+    fontWeight: 'bold'
   }
 };
 
