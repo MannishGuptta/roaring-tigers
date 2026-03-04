@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import supabase from './supabaseClient';
+import supabase from '../supabaseClient';
 
 function Login() {
   const [phone, setPhone] = useState('');
