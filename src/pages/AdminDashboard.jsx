@@ -163,6 +163,8 @@ function AdminDashboard() {
       setLoading(true);
       setError(null);
       
+      console.log('Fetching data from API...');
+      
       const [rmsRes, cpsRes, salesRes, meetingsRes, targetsRes] = await Promise.all([
         fetch(`${API_URL}/rms`).catch(err => ({ ok: false, error: err })),
         fetch(`${API_URL}/channel_partners`).catch(err => ({ ok: false, error: err })),
@@ -177,6 +179,14 @@ function AdminDashboard() {
       const salesData = salesRes.ok ? await salesRes.json().catch(() => []) : [];
       const meetingsData = meetingsRes.ok ? await meetingsRes.json().catch(() => []) : [];
       const targetsData = targetsRes.ok ? await targetsRes.json().catch(() => []) : [];
+      
+      console.log('Data received:', {
+        rms: rmsData?.length || 0,
+        cps: cpsData?.length || 0,
+        sales: salesData?.length || 0,
+        meetings: meetingsData?.length || 0,
+        targets: targetsData?.length || 0
+      });
       
       // Ensure data is always arrays
       setRms(Array.isArray(rmsData) ? rmsData : []);
@@ -1495,7 +1505,7 @@ function AdminDashboard() {
                         <td>{target?.meetings_target}</td>
                         <td>{formatCurrency(target?.revenue_target || 0)}</td>
                         <td>
-                          <button onClick={() => handleDelete('targets', target?.id)} style={styles.deleteBtn}>🗑️</button>
+                          <button onClick={() => handleDelete('kpi_targets', target?.id)} style={styles.deleteBtn}>🗑️</button>
                         </td>
                       </tr>
                     );
