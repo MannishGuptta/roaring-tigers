@@ -1,13 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import supabase from '../supabaseClient';
-
-function Login() {
-
-// Initialize Supabase directly in the frontend
-const supabaseUrl = 'https://ybtyvycgmahsxqclkgab.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlidHl2eWNnbWFoc3hxY2xrZ2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMTgxNjQsImV4cCI6MjA4NzU5NDE2NH0.O3qcr39duZnFxfjTE6DwFY-eQXCLCYCVZ4ijaEFiHxs';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import supabase from './supabaseClient';
 
 function Login() {
   const [phone, setPhone] = useState('');
@@ -15,16 +8,23 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  
+  // Use a ref to track if login has been attempted
+  const loginAttempted = useRef(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent multiple submissions
+    if (loading || loginAttempted.current) return;
+    
     setLoading(true);
     setError('');
+    loginAttempted.current = true;
 
     try {
       console.log('1. Attempting login with:', { phone, password });
 
-      // Query Supabase without .single() to avoid errors
       const { data, error } = await supabase
         .from('rms')
         .select('*')
@@ -33,44 +33,50 @@ function Login() {
 
       console.log('2. Full response:', { data, error });
 
-      // Check for database error
       if (error) {
         console.log('3. Database error:', error);
         setError('Login failed: ' + error.message);
+        loginAttempted.current = false;
         return;
       }
 
-      // Check if no user found
       if (!data || data.length === 0) {
         console.log('3. No matching user found');
         setError('Invalid phone or password');
+        loginAttempted.current = false;
         return;
       }
 
-      // Check if multiple users found (shouldn't happen, but just in case)
       if (data.length > 1) {
         console.log('3. Multiple users found:', data.length);
         setError('Multiple accounts found with same credentials');
+        loginAttempted.current = false;
         return;
       }
 
-      // Success! Exactly one user found
       const user = data[0];
       console.log('4. Login successful for:', user.name);
       
-      // Store user data in session
       sessionStorage.setItem('user', JSON.stringify(user));
       
-      // FIXED: Redirect to the correct dashboard route that exists in App.js
+      // Redirect based on role
       navigate('/dashboard');
 
     } catch (err) {
       console.error('Login error:', err);
       setError('Network error. Please try again.');
+      loginAttempted.current = false;
     } finally {
       setLoading(false);
     }
   };
+
+  // Reset loginAttempted if component unmounts
+  useEffect(() => {
+    return () => {
+      loginAttempted.current = false;
+    };
+  }, []);
 
   return (
     <div style={styles.container}>
