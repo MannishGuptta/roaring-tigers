@@ -18,7 +18,7 @@ function App() {
         <Route path="/" element={<Login />} />
         <Route path="/admin" element={<AdminLogin />} />
         
-        {/* Protected routes - all wrapped with ProtectedRoute */}
+        {/* Protected RM routes */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />
@@ -44,6 +44,8 @@ function App() {
             <RecordSale />
           </ProtectedRoute>
         } />
+        
+        {/* Protected Admin routes */}
         <Route path="/admin/dashboard" element={
           <ProtectedRoute>
             <AdminDashboard />
