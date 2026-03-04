@@ -22,32 +22,50 @@ function Login() {
     try {
       console.log('1. Attempting login with:', { phone, password });
 
-      // Query Supabase directly - no backend API needed!
+      // Query Supabase without .single() to avoid errors
       const { data, error } = await supabase
         .from('rms')
         .select('*')
         .eq('phone', phone)
-        .eq('password_hash', password)
-        .single();
+        .eq('password_hash', password);
 
-      console.log('2. Supabase response:', { data, error });
+      console.log('2. Full response:', { data, error });
 
+      // Check for database error
       if (error) {
-        console.log('3. Login failed:', error.message);
-        setError('Invalid phone or password');
-      } else if (data) {
-        console.log('4. Login successful for:', data.name);
-        
-        // Store user data in session
-        sessionStorage.setItem('user', JSON.stringify(data));
-        
-        // Check if user is admin based on phone number
-        if (phone === '9876543210') {
-          navigate('/admin/dashboard');
-        } else {
-          navigate('/rm/dashboard');
-        }
+        console.log('3. Database error:', error);
+        setError('Login failed: ' + error.message);
+        return;
       }
+
+      // Check if no user found
+      if (!data || data.length === 0) {
+        console.log('3. No matching user found');
+        setError('Invalid phone or password');
+        return;
+      }
+
+      // Check if multiple users found (shouldn't happen, but just in case)
+      if (data.length > 1) {
+        console.log('3. Multiple users found:', data.length);
+        setError('Multiple accounts found with same credentials');
+        return;
+      }
+
+      // Success! Exactly one user found
+      const user = data[0];
+      console.log('4. Login successful for:', user.name);
+      
+      // Store user data in session
+      sessionStorage.setItem('user', JSON.stringify(user));
+      
+      // Check if user is admin based on phone number
+      if (phone === '9876543210') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/rm/dashboard');
+      }
+
     } catch (err) {
       console.error('Login error:', err);
       setError('Network error. Please try again.');
