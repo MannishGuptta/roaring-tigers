@@ -1,11 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { createClient } from '@supabase/supabase-js';
-
-// Initialize Supabase directly
-const supabaseUrl = 'https://ybtyvycgmahsxqclkgab.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlidHl2eWNnbWFoc3hxY2xrZ2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMTgxNjQsImV4cCI6MjA4NzU5NDE2NH0.O3qcr39duZnFxfjTE6DwFY-eQXCLCYCVZ4ijaEFiHxs';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import supabase from '../supabaseClient';
 
 function Dashboard() {
   const [rm, setRm] = useState(null);
@@ -68,14 +63,20 @@ function Dashboard() {
     console.log('Setting up realtime subscriptions for RM:', rm.id);
 
     // Clean up any existing subscriptions
-    subscriptionsRef.current.forEach(sub => {
-      if (sub) supabase.removeChannel(sub);
-    });
-    subscriptionsRef.current = [];
+    if (subscriptionsRef.current.length > 0) {
+      console.log('Cleaning up old subscriptions before creating new ones');
+      subscriptionsRef.current.forEach(sub => {
+        if (sub) supabase.removeChannel(sub);
+      });
+      subscriptionsRef.current = [];
+    }
+
+    // Create new subscriptions
+    const subscriptions = [];
 
     // Subscribe to Channel Partners changes
     const cpSubscription = supabase
-      .channel(`cp-changes-${rm.id}`)
+      .channel(`cp-changes-${rm.id}-${Date.now()}`)
       .on('postgres_changes', 
         { 
           event: '*', 
@@ -90,11 +91,11 @@ function Dashboard() {
       )
       .subscribe();
     
-    subscriptionsRef.current.push(cpSubscription);
+    subscriptions.push(cpSubscription);
 
     // Subscribe to Meetings changes
     const meetingsSubscription = supabase
-      .channel(`meetings-changes-${rm.id}`)
+      .channel(`meetings-changes-${rm.id}-${Date.now()}`)
       .on('postgres_changes',
         { 
           event: '*', 
@@ -109,11 +110,11 @@ function Dashboard() {
       )
       .subscribe();
     
-    subscriptionsRef.current.push(meetingsSubscription);
+    subscriptions.push(meetingsSubscription);
 
     // Subscribe to Sales changes
     const salesSubscription = supabase
-      .channel(`sales-changes-${rm.id}`)
+      .channel(`sales-changes-${rm.id}-${Date.now()}`)
       .on('postgres_changes',
         { 
           event: '*', 
@@ -128,11 +129,13 @@ function Dashboard() {
       )
       .subscribe();
     
-    subscriptionsRef.current.push(salesSubscription);
+    subscriptions.push(salesSubscription);
+
+    subscriptionsRef.current = subscriptions;
 
     // Cleanup on unmount
     return () => {
-      console.log('Cleaning up all subscriptions');
+      console.log('Component unmounting - cleaning up all subscriptions');
       subscriptionsRef.current.forEach(sub => {
         if (sub) supabase.removeChannel(sub);
       });
