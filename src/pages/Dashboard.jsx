@@ -46,15 +46,18 @@ function Dashboard() {
     }
   }, [rm, timeRange]);
 
-  // REALTIME SUBSCRIPTIONS - Live updates when data changes
+  // REALTIME SUBSCRIPTIONS - Fixed version
   useEffect(() => {
     if (!rm) return;
 
     console.log('Setting up realtime subscriptions for RM:', rm.id);
 
+    // Create an array to store subscriptions
+    const subscriptions = [];
+
     // Subscribe to Channel Partners changes
     const cpSubscription = supabase
-      .channel('cp-changes')
+      .channel(`cp-changes-${rm.id}`)
       .on('postgres_changes', 
         { 
           event: '*', 
@@ -62,18 +65,17 @@ function Dashboard() {
           table: 'channel_partners',
           filter: `rm_id=eq.${rm.id}`
         },
-        (payload) => {
-          console.log('CP changed - realtime update:', payload);
+        () => {
           loadDashboardData(rm.id, timeRange);
         }
       )
-      .subscribe((status) => {
-        console.log('CP subscription status:', status);
-      });
+      .subscribe();
+    
+    subscriptions.push(cpSubscription);
 
     // Subscribe to Meetings changes
     const meetingsSubscription = supabase
-      .channel('meetings-changes')
+      .channel(`meetings-changes-${rm.id}`)
       .on('postgres_changes',
         { 
           event: '*', 
@@ -81,18 +83,17 @@ function Dashboard() {
           table: 'meetings',
           filter: `rm_id=eq.${rm.id}`
         },
-        (payload) => {
-          console.log('Meeting changed - realtime update:', payload);
+        () => {
           loadDashboardData(rm.id, timeRange);
         }
       )
-      .subscribe((status) => {
-        console.log('Meetings subscription status:', status);
-      });
+      .subscribe();
+    
+    subscriptions.push(meetingsSubscription);
 
     // Subscribe to Sales changes
     const salesSubscription = supabase
-      .channel('sales-changes')
+      .channel(`sales-changes-${rm.id}`)
       .on('postgres_changes',
         { 
           event: '*', 
@@ -100,23 +101,22 @@ function Dashboard() {
           table: 'sales',
           filter: `rm_id=eq.${rm.id}`
         },
-        (payload) => {
-          console.log('Sale changed - realtime update:', payload);
+        () => {
           loadDashboardData(rm.id, timeRange);
         }
       )
-      .subscribe((status) => {
-        console.log('Sales subscription status:', status);
-      });
+      .subscribe();
+    
+    subscriptions.push(salesSubscription);
 
     // Cleanup subscriptions when component unmounts
     return () => {
       console.log('Cleaning up realtime subscriptions');
-      supabase.removeChannel(cpSubscription);
-      supabase.removeChannel(meetingsSubscription);
-      supabase.removeChannel(salesSubscription);
+      subscriptions.forEach(sub => {
+        if (sub) supabase.removeChannel(sub);
+      });
     };
-  }, [rm, timeRange]);
+  }, [rm?.id]); // Only depend on rm.id, not timeRange
 
   const loadTargets = async (rmId) => {
     try {
@@ -172,7 +172,7 @@ function Dashboard() {
   const calculatePredictions = (currentValue, targetValue, daysElapsed, totalDays) => {
     if (!targetValue) return null;
     
-    const dailyRate = currentValue / daysElapsed;
+    const dailyRate = currentValue / Math.max(1, daysElapsed);
     const projectedValue = dailyRate * totalDays;
     const projectedPercentage = (projectedValue / targetValue) * 100;
     const gap = targetValue - projectedValue;
@@ -199,6 +199,8 @@ function Dashboard() {
   };
 
   const loadDashboardData = async (rmId, range) => {
+    if (!rmId) return;
+    
     setLoading(true);
     try {
       const startDate = getDateRange(range);
