@@ -1,214 +1,194 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import supabase from '../supabaseClient';
 
 function RecordSale() {
   const [rm, setRm] = useState(null);
   const [cps, setCps] = useState([]);
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchingData, setFetchingData] = useState(true);
   const [success, setSuccess] = useState(false);
-  const [showManualProject, setShowManualProject] = useState(false);
-  const [showManualUnit, setShowManualUnit] = useState(false);
-  const [showManualPaymentPlan, setShowManualPaymentPlan] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    // Link to CP (automatically linked to RM)
-    cp_id: '',
-    
-    // Applicant Details (property owner)
-    applicant_name: '',
-    applicant_phone: '',
-    
-    // Payer Details (can be different from applicant)
-    payer_name: '',
-    payer_phone: '',
-    payer_email: '',
-    payer_address: '',
-    
-    // Property Details
-    sale_date: new Date().toISOString().split('T')[0],
-    project_name: '',
-    manual_project: '',
-    unit_type: 'plot',
-    manual_unit_type: '',
-    plot_size: '',
-    number_of_plots: '1',
-    unit_number: '',
-    
-    // Financial Details
-    sale_amount: '',
-    booking_amount: '',
-    
-    // Payment Plan
-    payment_plan: '',
-    manual_payment_plan: '',
-    
-    // Payment Details
-    payment_mode: '',
-    manual_payment_mode: '',
-    payment_reference: '',
-    payment_date: '',
-    
-    // Commission
-    commission_amount: '',
-    
-    // Additional
-    notes: '',
-    status: 'completed'
-  });
-
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  // Project Options
-  const projectOptions = [
-    { value: 'deep_city_homes', label: 'Deep City Homes' },
-    { value: 'deep_town_block_b', label: 'Deep Town Block B' },
-    { value: 'deep_city_phase_2', label: 'Deep City Phase 2' },
-    { value: 'deep_city_phase_4', label: 'Deep City Phase 4' },
-    { value: 'deep_commercials', label: 'Deep Commercials' },
-    { value: 'others', label: 'Others' }
-  ];
+  const [formData, setFormData] = useState({
+    cp_id: '',
+    client_id: '',
+    applicant1_name: '',
+    applicant_phone: '',
+    applicant_email: '',
+    project_name: 'Deep Homes',
+    plot_number: '',
+    plot_size: '',
+    plot_value: '',
+    booking_amount_paid: '',
+    booking_date: new Date().toISOString().split('T')[0],
+    sale_date: new Date().toISOString().split('T')[0],
+    amount: '',
+    payment_status: 'pending',
+    payment_mode: '',
+    due_date: '',
+    due_date_options: '30 days',
+    discount_amount: 0,
+    tax_amount: 0,
+    invoice_number: '',
+    notes: ''
+  });
 
-  // Unit Type Options (simplified)
-  const unitTypeOptions = [
-    { value: 'plot', label: 'Plot' },
-    { value: 'others', label: 'Others' }
-  ];
-
-  // Payment Plan Options (simplified)
-  const paymentPlanOptions = [
-    { value: '30_days', label: '30 Days' },
-    { value: '45_days', label: '45 Days' },
-    { value: '60_days', label: '60 Days' },
-    { value: 'others', label: 'Others' }
-  ];
-
-  // Payment Mode Options
-  const paymentModeOptions = [
-    { value: 'cash', label: 'Cash' },
-    { value: 'cheque', label: 'Cheque' },
-    { value: 'bank_transfer', label: 'Bank Transfer' },
-    { value: 'online', label: 'Online Payment' },
-    { value: 'others', label: 'Others' }
-  ];
-
+  // Check authentication and fetch initial data
   useEffect(() => {
-    const rmData = sessionStorage.getItem('rm');
-    if (!rmData) {
+    const userData = sessionStorage.getItem('user');
+    if (!userData) {
       navigate('/');
       return;
     }
-    const rm = JSON.parse(rmData);
-    setRm(rm);
-    fetchCPs(rm.id);
+    const user = JSON.parse(userData);
+    setRm(user);
+    fetchData(user.id);
   }, [navigate]);
 
-  const fetchCPs = async (rmId) => {
+  const fetchData = async (rmId) => {
+    setFetchingData(true);
     try {
-      const response = await fetch('https://roaring-tigers-backend.onrender.com/channel_partners');
-      const allCPs = await response.json();
-      const rmCPs = allCPs.filter(cp => String(cp.rm_id) === String(rmId));
-      setCps(rmCPs);
+      // Fetch CPs and clients for this RM
+      const [cpResult, clientResult] = await Promise.all([
+        supabase.from('channel_partners').select('id, name').eq('rm_id', rmId),
+        supabase.from('clients').select('id, client_name').eq('rm_id', rmId)
+      ]);
+
+      if (cpResult.error) throw cpResult.error;
+      if (clientResult.error) throw clientResult.error;
+
+      setCps(cpResult.data || []);
+      setClients(clientResult.data || []);
     } catch (err) {
-      console.error('Error fetching CPs:', err);
+      console.error('Error fetching data:', err);
+      setError('Failed to load required data');
+    } finally {
+      setFetchingData(false);
     }
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    // Handle "Others" options
-    if (name === 'project_name') {
-      setShowManualProject(value === 'others');
-    }
-    if (name === 'unit_type') {
-      setShowManualUnit(value === 'others');
-    }
-    if (name === 'payment_plan') {
-      setShowManualPaymentPlan(value === 'others');
-    }
-    
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const calculateAmount = () => {
+    const plotValue = parseFloat(formData.plot_value) || 0;
+    const discount = parseFloat(formData.discount_amount) || 0;
+    const tax = parseFloat(formData.tax_amount) || 0;
+    return plotValue - discount + tax;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     setSuccess(false);
 
     try {
-      // Prepare final values
-      const finalProject = formData.project_name === 'others' ? formData.manual_project : formData.project_name;
-      const finalUnitType = formData.unit_type === 'others' ? formData.manual_unit_type : formData.unit_type;
-      const finalPaymentPlan = formData.payment_plan === 'others' ? formData.manual_payment_plan : formData.payment_plan;
+      if (!rm) {
+        throw new Error('You must be logged in');
+      }
 
+      // Validate required fields
+      if (!formData.cp_id) throw new Error('Please select a Channel Partner');
+      if (!formData.client_id) throw new Error('Please select a Client');
+      if (!formData.applicant1_name) throw new Error('Please enter applicant name');
+      if (!formData.amount && !formData.plot_value) throw new Error('Please enter sale amount or plot value');
+
+      // Calculate final amount if not provided
+      const saleAmount = formData.amount || calculateAmount();
+
+      // Prepare sale data for Supabase
       const saleData = {
-        ...formData,
         rm_id: rm.id,
-        project_name: finalProject,
-        unit_type: finalUnitType,
-        payment_plan: finalPaymentPlan,
-        sale_amount: parseFloat(formData.sale_amount) || 0,
-        booking_amount: parseFloat(formData.booking_amount) || 0,
-        commission_amount: parseFloat(formData.commission_amount) || 0,
-        number_of_plots: parseInt(formData.number_of_plots) || 1,
+        cp_id: parseInt(formData.cp_id),
+        client_id: parseInt(formData.client_id),
+        applicant1_name: formData.applicant1_name,
+        applicant_phone: formData.applicant_phone || null,
+        applicant_email: formData.applicant_email || null,
+        project_name: formData.project_name,
+        plot_number: formData.plot_number || null,
+        plot_size: parseFloat(formData.plot_size) || null,
+        plot_value: parseFloat(formData.plot_value) || 0,
+        booking_amount_paid: parseFloat(formData.booking_amount_paid) || 0,
+        booking_date: formData.booking_date || null,
         sale_date: formData.sale_date,
-        payment_date: formData.payment_date || formData.sale_date,
-        status: 'completed'
+        amount: parseFloat(saleAmount),
+        payment_status: formData.payment_status,
+        payment_mode: formData.payment_mode || null,
+        due_date: formData.due_date || null,
+        due_date_options: formData.due_date_options,
+        discount_amount: parseFloat(formData.discount_amount) || 0,
+        tax_amount: parseFloat(formData.tax_amount) || 0,
+        invoice_number: formData.invoice_number || null,
+        notes: formData.notes || null
       };
 
-      console.log('Submitting sale:', saleData);
+      console.log('Submitting sale data:', saleData);
 
-      const response = await fetch('https://roaring-tigers-backend.onrender.com/sales', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(saleData)
-      });
+      // Save to Supabase
+      const { data, error } = await supabase
+        .from('sales')
+        .insert([saleData])
+        .select();
 
-      if (!response.ok) throw new Error('Failed to save sale');
+      if (error) throw error;
 
+      console.log('Sale recorded successfully:', data);
       setSuccess(true);
       
       // Reset form
       setFormData({
         cp_id: '',
-        applicant_name: '',
+        client_id: '',
+        applicant1_name: '',
         applicant_phone: '',
-        payer_name: '',
-        payer_phone: '',
-        payer_email: '',
-        payer_address: '',
-        sale_date: new Date().toISOString().split('T')[0],
-        project_name: '',
-        manual_project: '',
-        unit_type: 'plot',
-        manual_unit_type: '',
+        applicant_email: '',
+        project_name: 'Deep Homes',
+        plot_number: '',
         plot_size: '',
-        number_of_plots: '1',
-        unit_number: '',
-        sale_amount: '',
-        booking_amount: '',
-        payment_plan: '',
-        manual_payment_plan: '',
+        plot_value: '',
+        booking_amount_paid: '',
+        booking_date: new Date().toISOString().split('T')[0],
+        sale_date: new Date().toISOString().split('T')[0],
+        amount: '',
+        payment_status: 'pending',
         payment_mode: '',
-        manual_payment_mode: '',
-        payment_reference: '',
-        payment_date: '',
-        commission_amount: '',
-        notes: '',
-        status: 'completed'
+        due_date: '',
+        due_date_options: '30 days',
+        discount_amount: 0,
+        tax_amount: 0,
+        invoice_number: '',
+        notes: ''
       });
 
-      setTimeout(() => setSuccess(false), 3000);
+      // Redirect back to dashboard after 2 seconds
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 2000);
 
     } catch (err) {
-      console.error('Error saving sale:', err);
-      alert('Error saving sale. Please try again.');
+      console.error('Error recording sale:', err);
+      setError(err.message || 'Failed to record sale. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!rm) return null;
+  if (!rm || fetchingData) {
+    return (
+      <div style={styles.loadingContainer}>
+        <div style={styles.loading}>Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>
@@ -220,20 +200,23 @@ function RecordSale() {
         </button>
       </div>
 
-      {/* Success Message */}
       {success && (
         <div style={styles.successMessage}>
-          ✅ Sale recorded successfully!
+          ✅ Sale recorded successfully! Redirecting...
         </div>
       )}
 
-      {/* Main Form */}
+      {error && (
+        <div style={styles.errorMessage}>
+          ❌ {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} style={styles.form}>
-        {/* Link to CP */}
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Channel Partner</h3>
+        {/* Party Selection */}
+        <div style={styles.row}>
           <div style={styles.formGroup}>
-            <label style={styles.label}>Select Channel Partner *</label>
+            <label style={styles.label}>Channel Partner *</label>
             <select
               name="cp_id"
               value={formData.cp_id}
@@ -241,386 +224,341 @@ function RecordSale() {
               required
               style={styles.select}
             >
-              <option value="">-- Select CP --</option>
+              <option value="">Select CP</option>
               {cps.map(cp => (
-                <option key={cp.id} value={cp.id}>
-                  {cp.cp_name} - {cp.phone}
-                </option>
+                <option key={cp.id} value={cp.id}>{cp.name}</option>
+              ))}
+            </select>
+            {cps.length === 0 && (
+              <p style={styles.warning}>
+                ⚠️ No CPs found. <Link to="/onboard-cp" style={styles.link}>Onboard a CP first</Link>
+              </p>
+            )}
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Client *</label>
+            <select
+              name="client_id"
+              value={formData.client_id}
+              onChange={handleChange}
+              required
+              style={styles.select}
+            >
+              <option value="">Select Client</option>
+              {clients.map(client => (
+                <option key={client.id} value={client.id}>{client.client_name}</option>
               ))}
             </select>
           </div>
         </div>
 
         {/* Applicant Details */}
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Applicant (Property Owner)</h3>
-          <div style={styles.row}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Applicant Name *</label>
-              <input
-                type="text"
-                name="applicant_name"
-                value={formData.applicant_name}
-                onChange={handleChange}
-                required
-                style={styles.input}
-                placeholder="Full name of property owner"
-              />
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Applicant Phone *</label>
-              <input
-                type="tel"
-                name="applicant_phone"
-                value={formData.applicant_phone}
-                onChange={handleChange}
-                required
-                style={styles.input}
-                placeholder="Phone number"
-              />
-            </div>
-          </div>
+        <div style={styles.sectionTitle}>Applicant Details</div>
+        
+        <div style={styles.formGroup}>
+          <label style={styles.label}>Applicant Name *</label>
+          <input
+            type="text"
+            name="applicant1_name"
+            value={formData.applicant1_name}
+            onChange={handleChange}
+            required
+            style={styles.input}
+            placeholder="Enter applicant name"
+          />
         </div>
 
-        {/* Payer Details (Optional - if different from applicant) */}
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Payer Details (if different from applicant)</h3>
-          <div style={styles.row}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Payer Name</label>
-              <input
-                type="text"
-                name="payer_name"
-                value={formData.payer_name}
-                onChange={handleChange}
-                style={styles.input}
-                placeholder="Person making payment"
-              />
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Payer Phone</label>
-              <input
-                type="tel"
-                name="payer_phone"
-                value={formData.payer_phone}
-                onChange={handleChange}
-                style={styles.input}
-                placeholder="Phone number"
-              />
-            </div>
-          </div>
-          <div style={styles.row}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Payer Email</label>
-              <input
-                type="email"
-                name="payer_email"
-                value={formData.payer_email}
-                onChange={handleChange}
-                style={styles.input}
-                placeholder="Email address"
-              />
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Payer Address</label>
-              <input
-                type="text"
-                name="payer_address"
-                value={formData.payer_address}
-                onChange={handleChange}
-                style={styles.input}
-                placeholder="Address"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Property Details */}
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Property Details</h3>
-          
-          <div style={styles.row}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Project *</label>
-              <select
-                name="project_name"
-                value={formData.project_name}
-                onChange={handleChange}
-                required
-                style={styles.select}
-              >
-                <option value="">-- Select Project --</option>
-                {projectOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {showManualProject && (
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Specify Project</label>
-                <input
-                  type="text"
-                  name="manual_project"
-                  value={formData.manual_project}
-                  onChange={handleChange}
-                  required
-                  style={styles.input}
-                  placeholder="Enter project name"
-                />
-              </div>
-            )}
-          </div>
-
-          <div style={styles.row}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Unit Type *</label>
-              <select
-                name="unit_type"
-                value={formData.unit_type}
-                onChange={handleChange}
-                required
-                style={styles.select}
-              >
-                {unitTypeOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {showManualUnit && (
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Specify Unit Type</label>
-                <input
-                  type="text"
-                  name="manual_unit_type"
-                  value={formData.manual_unit_type}
-                  onChange={handleChange}
-                  required
-                  style={styles.input}
-                  placeholder="Enter unit type"
-                />
-              </div>
-            )}
-          </div>
-
-          <div style={styles.row}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Plot Size</label>
-              <input
-                type="text"
-                name="plot_size"
-                value={formData.plot_size}
-                onChange={handleChange}
-                style={styles.input}
-                placeholder="e.g., 200 sq yards"
-              />
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Number of Plots</label>
-              <input
-                type="number"
-                name="number_of_plots"
-                value={formData.number_of_plots}
-                onChange={handleChange}
-                min="1"
-                style={styles.input}
-              />
-            </div>
+        <div style={styles.row}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Phone</label>
+            <input
+              type="tel"
+              name="applicant_phone"
+              value={formData.applicant_phone}
+              onChange={handleChange}
+              style={styles.input}
+              placeholder="Enter phone number"
+            />
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>Plot/Unit Number</label>
+            <label style={styles.label}>Email</label>
             <input
-              type="text"
-              name="unit_number"
-              value={formData.unit_number}
+              type="email"
+              name="applicant_email"
+              value={formData.applicant_email}
               onChange={handleChange}
               style={styles.input}
-              placeholder="Plot/Unit number"
+              placeholder="Enter email address"
+            />
+          </div>
+        </div>
+
+        {/* Project Details */}
+        <div style={styles.sectionTitle}>Project Details</div>
+
+        <div style={styles.row}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Project *</label>
+            <select
+              name="project_name"
+              value={formData.project_name}
+              onChange={handleChange}
+              required
+              style={styles.select}
+            >
+              <option value="Deep Homes">Deep Homes</option>
+              <option value="Deep Town Block B">Deep Town Block B</option>
+              <option value="Deep City Phase 4">Deep City Phase 4</option>
+              <option value="Deep City Phase 2">Deep City Phase 2</option>
+              <option value="Deep Commercials">Deep Commercials</option>
+              <option value="Others">Others</option>
+            </select>
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Plot Number</label>
+            <input
+              type="text"
+              name="plot_number"
+              value={formData.plot_number}
+              onChange={handleChange}
+              style={styles.input}
+              placeholder="Enter plot number"
+            />
+          </div>
+        </div>
+
+        <div style={styles.row}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Plot Size (sq ft)</label>
+            <input
+              type="number"
+              name="plot_size"
+              value={formData.plot_size}
+              onChange={handleChange}
+              style={styles.input}
+              placeholder="Enter plot size"
+            />
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Plot Value (₹)</label>
+            <input
+              type="number"
+              name="plot_value"
+              value={formData.plot_value}
+              onChange={handleChange}
+              style={styles.input}
+              placeholder="Enter plot value"
             />
           </div>
         </div>
 
         {/* Financial Details */}
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Financial Details</h3>
-          
-          <div style={styles.row}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Total Sale Amount (₹) *</label>
-              <input
-                type="number"
-                name="sale_amount"
-                value={formData.sale_amount}
-                onChange={handleChange}
-                required
-                style={styles.input}
-                min="0"
-                step="1000"
-                placeholder="Total sale value"
-              />
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Booking Amount (₹)</label>
-              <input
-                type="number"
-                name="booking_amount"
-                value={formData.booking_amount}
-                onChange={handleChange}
-                style={styles.input}
-                min="0"
-                step="1000"
-                placeholder="Amount paid at booking"
-              />
-            </div>
-          </div>
-        </div>
+        <div style={styles.sectionTitle}>Financial Details</div>
 
-        {/* Payment Details */}
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Payment Details</h3>
-          
-          <div style={styles.row}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Payment Plan *</label>
-              <select
-                name="payment_plan"
-                value={formData.payment_plan}
-                onChange={handleChange}
-                required
-                style={styles.select}
-              >
-                <option value="">-- Select Payment Plan --</option>
-                {paymentPlanOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {showManualPaymentPlan && (
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Specify Payment Plan</label>
-                <input
-                  type="text"
-                  name="manual_payment_plan"
-                  value={formData.manual_payment_plan}
-                  onChange={handleChange}
-                  required
-                  style={styles.input}
-                  placeholder="Enter payment plan"
-                />
-              </div>
-            )}
-          </div>
-
-          <div style={styles.row}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Payment Mode *</label>
-              <select
-                name="payment_mode"
-                value={formData.payment_mode}
-                onChange={handleChange}
-                required
-                style={styles.select}
-              >
-                <option value="">-- Select Payment Mode --</option>
-                {paymentModeOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Payment Reference</label>
-              <input
-                type="text"
-                name="payment_reference"
-                value={formData.payment_reference}
-                onChange={handleChange}
-                style={styles.input}
-                placeholder="Cheque/Transaction ID"
-              />
-            </div>
-          </div>
-
+        <div style={styles.row}>
           <div style={styles.formGroup}>
-            <label style={styles.label}>Payment Date</label>
-            <input
-              type="date"
-              name="payment_date"
-              value={formData.payment_date}
-              onChange={handleChange}
-              style={styles.input}
-            />
-          </div>
-        </div>
-
-        {/* Commission */}
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Commission</h3>
-          
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Commission Amount (₹)</label>
+            <label style={styles.label}>Booking Amount Paid (₹)</label>
             <input
               type="number"
-              name="commission_amount"
-              value={formData.commission_amount}
+              name="booking_amount_paid"
+              value={formData.booking_amount_paid}
               onChange={handleChange}
               style={styles.input}
-              min="0"
-              step="100"
-              placeholder="Commission for CP"
+              placeholder="Enter booking amount"
+            />
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Booking Date</label>
+            <input
+              type="date"
+              name="booking_date"
+              value={formData.booking_date}
+              onChange={handleChange}
+              style={styles.input}
             />
           </div>
         </div>
 
-        {/* Additional Notes */}
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Additional Information</h3>
-          
+        <div style={styles.row}>
           <div style={styles.formGroup}>
-            <label style={styles.label}>Sale Date</label>
+            <label style={styles.label}>Sale Date *</label>
             <input
               type="date"
               name="sale_date"
               value={formData.sale_date}
               onChange={handleChange}
+              required
               style={styles.input}
+              max={new Date().toISOString().split('T')[0]}
             />
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>Notes</label>
-            <textarea
-              name="notes"
-              value={formData.notes}
+            <label style={styles.label}>Sale Amount (₹)</label>
+            <input
+              type="number"
+              name="amount"
+              value={formData.amount}
               onChange={handleChange}
-              style={styles.textarea}
-              placeholder="Any additional notes about the sale"
-              rows="3"
+              style={styles.input}
+              placeholder="Leave blank to auto-calculate"
+            />
+            <small style={styles.helperText}>
+              Auto-calculated: Plot Value - Discount + Tax
+            </small>
+          </div>
+        </div>
+
+        {/* Payment Details */}
+        <div style={styles.sectionTitle}>Payment Details</div>
+
+        <div style={styles.row}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Payment Status</label>
+            <select
+              name="payment_status"
+              value={formData.payment_status}
+              onChange={handleChange}
+              style={styles.select}
+            >
+              <option value="pending">Pending</option>
+              <option value="partial">Partial</option>
+              <option value="completed">Completed</option>
+              <option value="refunded">Refunded</option>
+            </select>
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Payment Mode</label>
+            <select
+              name="payment_mode"
+              value={formData.payment_mode}
+              onChange={handleChange}
+              style={styles.select}
+            >
+              <option value="">Select Mode</option>
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="upi">UPI</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="cheque">Cheque</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={styles.row}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Due Date Options</label>
+            <select
+              name="due_date_options"
+              value={formData.due_date_options}
+              onChange={handleChange}
+              style={styles.select}
+            >
+              <option value="30 days">30 days</option>
+              <option value="45 days">45 days</option>
+              <option value="60 days">60 days</option>
+              <option value="90 days">90 days</option>
+              <option value="others">Others</option>
+            </select>
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Due Date</label>
+            <input
+              type="date"
+              name="due_date"
+              value={formData.due_date}
+              onChange={handleChange}
+              style={styles.input}
             />
           </div>
         </div>
 
-        {/* Form Actions */}
-        <div style={styles.actions}>
+        <div style={styles.row}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Discount Amount (₹)</label>
+            <input
+              type="number"
+              name="discount_amount"
+              value={formData.discount_amount}
+              onChange={handleChange}
+              style={styles.input}
+              min="0"
+            />
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Tax Amount (₹)</label>
+            <input
+              type="number"
+              name="tax_amount"
+              value={formData.tax_amount}
+              onChange={handleChange}
+              style={styles.input}
+              min="0"
+            />
+          </div>
+        </div>
+
+        {/* Invoice & Notes */}
+        <div style={styles.row}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Invoice Number</label>
+            <input
+              type="text"
+              name="invoice_number"
+              value={formData.invoice_number}
+              onChange={handleChange}
+              style={styles.input}
+              placeholder="Enter invoice number"
+            />
+          </div>
+        </div>
+
+        <div style={styles.formGroup}>
+          <label style={styles.label}>Notes</label>
+          <textarea
+            name="notes"
+            value={formData.notes}
+            onChange={handleChange}
+            style={styles.textarea}
+            placeholder="Enter any additional notes..."
+            rows="3"
+          />
+        </div>
+
+        {/* Submit Buttons */}
+        <div style={styles.buttonGroup}>
           <button type="button" onClick={() => navigate('/dashboard')} style={styles.cancelBtn}>
             Cancel
           </button>
-          <button type="submit" disabled={loading} style={{
-            ...styles.submitBtn,
-            opacity: loading ? 0.7 : 1,
-            cursor: loading ? 'wait' : 'pointer'
-          }}>
-            {loading ? 'Recording Sale...' : 'Record Sale'}
+          <button 
+            type="submit" 
+            disabled={loading}
+            style={loading ? {...styles.submitBtn, ...styles.disabled} : styles.submitBtn}
+          >
+            {loading ? 'Recording...' : 'Record Sale'}
           </button>
         </div>
       </form>
+
+      {/* Tips Section */}
+      <div style={styles.tips}>
+        <h3 style={styles.tipsTitle}>📝 Sale Recording Tips:</h3>
+        <ul style={styles.tipsList}>
+          <li>Select the correct Channel Partner and Client</li>
+          <li>Enter accurate plot and payment details</li>
+          <li>Sale amount auto-calculates from plot value - discount + tax</li>
+          <li>Set due date for balance payment tracking</li>
+          <li>Add invoice number for future reference</li>
+        </ul>
+      </div>
     </div>
   );
 }
@@ -628,15 +566,25 @@ function RecordSale() {
 const styles = {
   container: {
     padding: '20px',
-    maxWidth: '800px',
+    maxWidth: '900px',
     margin: '0 auto',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  },
+  loadingContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100vh'
+  },
+  loading: {
+    fontSize: '18px',
+    color: '#666'
   },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '20px',
+    marginBottom: '30px',
     padding: '20px',
     background: 'white',
     borderRadius: '10px',
@@ -644,7 +592,6 @@ const styles = {
   },
   title: {
     fontSize: '24px',
-    color: '#333',
     margin: 0
   },
   backBtn: {
@@ -657,97 +604,146 @@ const styles = {
     fontSize: '14px'
   },
   successMessage: {
+    padding: '15px',
     background: '#d4edda',
     color: '#155724',
-    padding: '15px',
+    border: '1px solid #c3e6cb',
     borderRadius: '5px',
     marginBottom: '20px',
-    textAlign: 'center',
-    fontSize: '16px',
-    border: '1px solid #c3e6cb'
+    textAlign: 'center'
+  },
+  errorMessage: {
+    padding: '15px',
+    background: '#f8d7da',
+    color: '#721c24',
+    border: '1px solid #f5c6cb',
+    borderRadius: '5px',
+    marginBottom: '20px',
+    textAlign: 'center'
   },
   form: {
     background: 'white',
     padding: '30px',
     borderRadius: '10px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
-  },
-  section: {
-    marginBottom: '30px',
-    padding: '20px',
-    background: '#f8f9fa',
-    borderRadius: '8px'
+    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+    marginBottom: '20px'
   },
   sectionTitle: {
-    margin: '0 0 20px 0',
-    fontSize: '18px',
-    color: '#495057',
-    borderBottom: '2px solid #dee2e6',
-    paddingBottom: '10px'
-  },
-  row: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '15px',
-    marginBottom: '15px'
-  },
-  formGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '5px'
-  },
-  label: {
+    fontSize: '16px',
     fontWeight: 'bold',
     color: '#495057',
-    fontSize: '14px'
+    margin: '20px 0 15px 0',
+    paddingBottom: '5px',
+    borderBottom: '2px solid #e9ecef'
+  },
+  formGroup: {
+    flex: 1,
+    marginBottom: '15px'
+  },
+  row: {
+    display: 'flex',
+    gap: '20px',
+    marginBottom: '0'
+  },
+  label: {
+    display: 'block',
+    marginBottom: '5px',
+    fontWeight: 'bold',
+    fontSize: '14px',
+    color: '#495057'
   },
   input: {
-    padding: '10px',
-    border: '2px solid #dee2e6',
-    borderRadius: '6px',
-    fontSize: '14px'
-  },
-  select: {
+    width: '100%',
     padding: '10px',
     border: '2px solid #dee2e6',
     borderRadius: '6px',
     fontSize: '14px',
-    background: 'white'
+    boxSizing: 'border-box',
+    transition: 'border-color 0.3s'
+  },
+  select: {
+    width: '100%',
+    padding: '10px',
+    border: '2px solid #dee2e6',
+    borderRadius: '6px',
+    fontSize: '14px',
+    background: 'white',
+    cursor: 'pointer'
   },
   textarea: {
+    width: '100%',
     padding: '10px',
     border: '2px solid #dee2e6',
     borderRadius: '6px',
     fontSize: '14px',
     fontFamily: 'inherit',
-    resize: 'vertical'
+    boxSizing: 'border-box',
+    resize: 'vertical',
+    minHeight: '80px'
   },
-  actions: {
+  warning: {
+    marginTop: '5px',
+    fontSize: '12px',
+    color: '#856404'
+  },
+  link: {
+    color: '#007bff',
+    textDecoration: 'none'
+  },
+  helperText: {
+    fontSize: '11px',
+    color: '#666',
+    marginTop: '3px',
+    display: 'block'
+  },
+  buttonGroup: {
     display: 'flex',
-    justifyContent: 'flex-end',
-    gap: '15px',
-    marginTop: '30px',
-    paddingTop: '20px',
-    borderTop: '1px solid #dee2e6'
+    gap: '10px',
+    marginTop: '30px'
   },
   cancelBtn: {
-    padding: '12px 24px',
+    flex: 1,
+    padding: '12px',
     background: 'white',
-    color: '#6c757d',
     border: '2px solid #dee2e6',
     borderRadius: '6px',
-    fontSize: '14px',
+    fontSize: '16px',
     fontWeight: 'bold',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'background-color 0.3s'
   },
   submitBtn: {
-    padding: '12px 24px',
+    flex: 2,
+    padding: '12px',
     background: '#28a745',
     color: 'white',
     border: 'none',
     borderRadius: '6px',
-    fontSize: '14px',
-    fontWeight: 'bold'
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'background-color 0.3s'
+  },
+  disabled: {
+    opacity: 0.6,
+    cursor: 'not-allowed'
+  },
+  tips: {
+    background: '#e7f3ff',
+    padding: '20px',
+    borderRadius: '10px',
+    border: '1px solid #b8daff'
+  },
+  tipsTitle: {
+    margin: '0 0 10px 0',
+    color: '#004085',
+    fontSize: '16px'
+  },
+  tipsList: {
+    margin: 0,
+    paddingLeft: '20px',
+    color: '#004085',
+    lineHeight: '1.6'
   }
 };
 
