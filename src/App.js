@@ -1,95 +1,40 @@
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { supabase } from "./supabaseClient";
-import LogMeeting from "./pages/LogMeeting";
+
+import MeetingLogger from "./MeetingLogger";
+import OnboardCP from "./OnboardCP";
+import MyCPs from "./MyCPs";
+import RecordSale from "./RecordSale";
 
 function Dashboard() {
-
-  const [stats, setStats] = useState({
-    cps: 0,
-    meetings: 0,
-    sales: 0,
-    revenue: 0
-  });
-
-  useEffect(() => {
-    loadStats();
-  }, []);
-
-  async function loadStats() {
-
-    try {
-
-      const { data: cpData } = await supabase
-        .from("channel_partners")
-        .select("*");
-
-      const { data: meetingData } = await supabase
-        .from("meetings")
-        .select("*");
-
-      const { data: salesData } = await supabase
-        .from("sales")
-        .select("*");
-
-      let revenue = 0;
-
-      if (salesData) {
-        revenue = salesData.reduce(
-          (sum, s) => sum + (s.sale_value || 0),
-          0
-        );
-      }
-
-      setStats({
-        cps: cpData ? cpData.length : 0,
-        meetings: meetingData ? meetingData.length : 0,
-        sales: salesData ? salesData.length : 0,
-        revenue: revenue
-      });
-
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
   return (
 
     <div style={{ padding: 40 }}>
 
       <h1>RevenuePilot</h1>
-      <p>Channel Sales Intelligence Platform</p>
-
-      <div style={{ display: "flex", gap: 20, marginTop: 30 }}>
-
-        <div style={cardStyle}>
-          <h3>Total CPs</h3>
-          <p>{stats.cps}</p>
-        </div>
-
-        <div style={cardStyle}>
-          <h3>Meetings</h3>
-          <p>{stats.meetings}</p>
-        </div>
-
-        <div style={cardStyle}>
-          <h3>Sales</h3>
-          <p>{stats.sales}</p>
-        </div>
-
-        <div style={cardStyle}>
-          <h3>Revenue</h3>
-          <p>₹{stats.revenue.toLocaleString()}</p>
-        </div>
-
-      </div>
+      <h2>Sales Command System</h2>
 
       <div style={{ marginTop: 40 }}>
 
+        <Link to="/onboard-cp">
+          <button style={btn}>Onboard Channel Partner</button>
+        </Link>
+
+        <br /><br />
+
         <Link to="/log-meeting">
-          <button style={buttonStyle}>
-            Log Meeting
-          </button>
+          <button style={btn}>Log Meeting</button>
+        </Link>
+
+        <br /><br />
+
+        <Link to="/my-cps">
+          <button style={btn}>My Channel Partners</button>
+        </Link>
+
+        <br /><br />
+
+        <Link to="/record-sale">
+          <button style={btn}>Record Sale</button>
         </Link>
 
       </div>
@@ -107,15 +52,15 @@ export default function App() {
 
       <Routes>
 
-        <Route
-          path="/"
-          element={<Dashboard />}
-        />
+        <Route path="/" element={<Dashboard />} />
 
-        <Route
-          path="/log-meeting"
-          element={<LogMeeting />}
-        />
+        <Route path="/onboard-cp" element={<OnboardCP />} />
+
+        <Route path="/log-meeting" element={<MeetingLogger />} />
+
+        <Route path="/my-cps" element={<MyCPs />} />
+
+        <Route path="/record-sale" element={<RecordSale />} />
 
       </Routes>
 
@@ -124,19 +69,12 @@ export default function App() {
   );
 }
 
-const cardStyle = {
-  padding: 20,
-  background: "#f5f5f5",
-  borderRadius: 10,
-  minWidth: 120,
-  textAlign: "center"
-};
-
-const buttonStyle = {
+const btn = {
   padding: "12px 20px",
   background: "#667eea",
   color: "white",
   border: "none",
   borderRadius: 6,
-  cursor: "pointer"
+  cursor: "pointer",
+  width: 250
 };
