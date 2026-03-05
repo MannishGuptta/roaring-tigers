@@ -13,15 +13,13 @@ export default function App() {
 
     const { error } = await supabase
       .from("channel_partners")
-      .insert([
-        { name, phone, company, city }
-      ]);
+      .insert([{ name, phone, company, city }]);
 
     if(error){
       console.log(error);
-      setMessage("❌ Error saving CP");
+      setMessage("Error saving CP");
     } else{
-      setMessage("✅ Channel Partner added");
+      setMessage("Channel Partner added successfully");
       setName("");
       setPhone("");
       setCompany("");
@@ -29,9 +27,8 @@ export default function App() {
     }
   }
 
-  return(
+  return (
     <div style={{padding:40}}>
-
       <h1>Deep Buildwell RM Dashboard</h1>
 
       <h2>Add Channel Partner</h2>
