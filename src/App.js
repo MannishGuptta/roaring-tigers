@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 
 export default function App() {
-  const [status, setStatus] = useState("Testing...");
+  const [status, setStatus] = useState("Testing Supabase connection...");
 
   useEffect(() => {
     testConnection();
@@ -14,17 +14,17 @@ export default function App() {
 
       if (error) throw error;
 
-      setStatus("✅ Supabase connected");
+      setStatus("✅ Supabase connected successfully");
       console.log(data);
     } catch (err) {
       console.error(err);
-      setStatus("❌ Connection failed");
+      setStatus("❌ Supabase connection failed");
     }
   }
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>RM Dashboard Test</h1>
+      <h1>Deep Buildwell RM Dashboard</h1>
       <h2>{status}</h2>
     </div>
   );
