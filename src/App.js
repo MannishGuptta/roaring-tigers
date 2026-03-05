@@ -36,6 +36,14 @@ expected_business_pm:business,
 gst_no:gst,
 rera_no:rera,
 pan_no:pan,
+<select onChange={(e)=>setSource(e.target.value)}>
+<option>Select CP Source</option>
+<option>Self Generated</option>
+<option>Reference</option>
+<option>Marketing Campaign</option>
+<option>Walk-in</option>
+<option>Cold Calling</option>
+</select><br/><br/>  
 rm_name:rmName,
 rm_remarks:remarks
 }])
