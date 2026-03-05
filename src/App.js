@@ -108,7 +108,7 @@ return(
 
 <div style={{padding:40,fontFamily:"Arial"}}>
 
-<h1>Deep Buildwell RM Dashboard</h1>
+<h1>Sales Command Center</h1>
 
 <h2>Add Channel Partner</h2>
 
