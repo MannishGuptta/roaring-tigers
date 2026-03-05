@@ -1,9 +1,10 @@
+import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
+import LogMeeting from "./pages/LogMeeting";
 
-export default function App() {
+function Dashboard() {
 
-  const [status, setStatus] = useState("Testing Supabase connection...");
   const [stats, setStats] = useState({
     cps: 0,
     meetings: 0,
@@ -12,28 +13,11 @@ export default function App() {
   });
 
   useEffect(() => {
-    testConnection();
-    loadDashboardStats();
+    loadStats();
   }, []);
 
-  async function testConnection() {
-    try {
-      const { error } = await supabase
-        .from("rms")
-        .select("*")
-        .limit(1);
+  async function loadStats() {
 
-      if (error) throw error;
-
-      setStatus("✅ Supabase connected successfully");
-
-    } catch (err) {
-      console.error(err);
-      setStatus("❌ Supabase connection failed");
-    }
-  }
-
-  async function loadDashboardStats() {
     try {
 
       const { data: cpData } = await supabase
@@ -65,127 +49,94 @@ export default function App() {
       });
 
     } catch (err) {
-      console.error("Dashboard error:", err);
+      console.error(err);
     }
   }
 
   return (
 
-    <div style={styles.container}>
+    <div style={{ padding: 40 }}>
 
-      {/* Header */}
+      <h1>RevenuePilot</h1>
+      <p>Channel Sales Intelligence Platform</p>
 
-      <h1 style={styles.title}>RevenuePilot</h1>
-      <p style={styles.subtitle}>Channel Sales Intelligence Platform</p>
+      <div style={{ display: "flex", gap: 20, marginTop: 30 }}>
 
-      <p style={styles.status}>{status}</p>
-
-      {/* Dashboard Stats */}
-
-      <div style={styles.statsGrid}>
-
-        <div style={styles.card}>
+        <div style={cardStyle}>
           <h3>Total CPs</h3>
-          <p style={styles.number}>{stats.cps}</p>
+          <p>{stats.cps}</p>
         </div>
 
-        <div style={styles.card}>
+        <div style={cardStyle}>
           <h3>Meetings</h3>
-          <p style={styles.number}>{stats.meetings}</p>
+          <p>{stats.meetings}</p>
         </div>
 
-        <div style={styles.card}>
+        <div style={cardStyle}>
           <h3>Sales</h3>
-          <p style={styles.number}>{stats.sales}</p>
+          <p>{stats.sales}</p>
         </div>
 
-        <div style={styles.card}>
+        <div style={cardStyle}>
           <h3>Revenue</h3>
-          <p style={styles.number}>
-            ₹{stats.revenue.toLocaleString()}
-          </p>
+          <p>₹{stats.revenue.toLocaleString()}</p>
         </div>
 
       </div>
 
-      {/* Navigation Buttons */}
+      <div style={{ marginTop: 40 }}>
 
-      <div style={styles.actions}>
-
-        <button style={styles.button}>
-          Onboard Channel Partner
-        </button>
-
-        <button style={styles.button}>
-          Log Meeting
-        </button>
-
-        <button style={styles.button}>
-          Record Sale
-        </button>
-
-        <button style={styles.button}>
-          View Collections
-        </button>
+        <Link to="/log-meeting">
+          <button style={buttonStyle}>
+            Log Meeting
+          </button>
+        </Link>
 
       </div>
 
     </div>
+
   );
 }
 
-const styles = {
+export default function App() {
 
-  container: {
-    padding: "40px",
-    fontFamily: "Arial"
-  },
+  return (
 
-  title: {
-    fontSize: "32px",
-    marginBottom: "5px"
-  },
+    <Router>
 
-  subtitle: {
-    color: "#666",
-    marginBottom: "20px"
-  },
+      <Routes>
 
-  status: {
-    marginBottom: "30px"
-  },
+        <Route
+          path="/"
+          element={<Dashboard />}
+        />
 
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4,1fr)",
-    gap: "20px",
-    marginBottom: "40px"
-  },
+        <Route
+          path="/log-meeting"
+          element={<LogMeeting />}
+        />
 
-  card: {
-    padding: "20px",
-    background: "#f5f5f5",
-    borderRadius: "10px",
-    textAlign: "center"
-  },
+      </Routes>
 
-  number: {
-    fontSize: "26px",
-    fontWeight: "bold"
-  },
+    </Router>
 
-  actions: {
-    display: "flex",
-    gap: "15px"
-  },
+  );
+}
 
-  button: {
-    padding: "12px 20px",
-    border: "none",
-    background: "#667eea",
-    color: "white",
-    borderRadius: "6px",
-    cursor: "pointer"
-  }
+const cardStyle = {
+  padding: 20,
+  background: "#f5f5f5",
+  borderRadius: 10,
+  minWidth: 120,
+  textAlign: "center"
+};
 
+const buttonStyle = {
+  padding: "12px 20px",
+  background: "#667eea",
+  color: "white",
+  border: "none",
+  borderRadius: 6,
+  cursor: "pointer"
 };
