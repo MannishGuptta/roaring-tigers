@@ -1,27 +1,9 @@
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import "./App.css";
 
-import LogMeeting from "./pages/LogMeeting";
+import Dashboard from "./pages/Dashboard";
+import MeetingLogger from "./pages/MeetingLogger";
 import AdminDashboard from "./pages/AdminDashboard";
-
-function Home() {
-  return (
-    <div style={{ padding: 40 }}>
-      <h1>RevenuePilot</h1>
-      <h2>Sales Command System</h2>
-
-      <div style={{ marginTop: 20 }}>
-        <Link to="/log-meeting">
-          <button style={btn}>Log Meeting</button>
-        </Link>
-
-        <Link to="/admin">
-          <button style={btn}>Admin Dashboard</button>
-        </Link>
-      </div>
-    </div>
-  );
-}
 
 export default function App() {
   return (
@@ -38,12 +20,12 @@ export default function App() {
         </div>
       </div>
 
-      {/* Page Routes */}
+      {/* Routes */}
       <Routes>
 
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Dashboard />} />
 
-        <Route path="/log-meeting" element={<LogMeeting />} />
+        <Route path="/log-meeting" element={<MeetingLogger />} />
 
         <Route path="/admin" element={<AdminDashboard />} />
 
@@ -54,26 +36,16 @@ export default function App() {
 }
 
 const navbar = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  padding: "15px 30px",
-  background: "#5c6bc0"
+  display:"flex",
+  justifyContent:"space-between",
+  alignItems:"center",
+  padding:"15px 30px",
+  background:"#5c6bc0"
 };
 
 const navlink = {
-  color: "#fff",
-  marginLeft: 20,
-  textDecoration: "none",
-  fontWeight: "500"
-};
-
-const btn = {
-  padding: "12px 20px",
-  marginRight: 10,
-  background: "#5c6bc0",
-  color: "#fff",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer"
+  color:"#fff",
+  marginLeft:20,
+  textDecoration:"none",
+  fontWeight:"500"
 };
