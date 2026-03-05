@@ -1,49 +1,78 @@
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+
+import Dashboard from "./pages/Dashboard";
 import LogMeeting from "./pages/LogMeeting";
 
-function Dashboard() {
-  return (
-    <div style={{ padding: 40 }}>
-
-      <h1>RevenuePilot</h1>
-      <h2>Sales Command System</h2>
-
-      <div style={{ marginTop: 40 }}>
-        <Link to="/log-meeting">
-          <button style={btn}>
-            Log Meeting
-          </button>
-        </Link>
-      </div>
-
-    </div>
-  );
-}
-
 export default function App() {
-
   return (
-
     <Router>
+      <div style={layout}>
 
-      <Routes>
+        {/* Top Navigation */}
+        <nav style={navbar}>
 
-        <Route path="/" element={<Dashboard />} />
+          <div style={logo}>
+            RevenuePilot
+          </div>
 
-        <Route path="/log-meeting" element={<LogMeeting />} />
+          <div style={navLinks}>
+            <Link style={link} to="/">Dashboard</Link>
+            <Link style={link} to="/log-meeting">Log Meeting</Link>
+          </div>
 
-      </Routes>
+        </nav>
 
+        {/* Page Content */}
+        <div style={content}>
+          <Routes>
+
+            <Route
+              path="/"
+              element={<Dashboard />}
+            />
+
+            <Route
+              path="/log-meeting"
+              element={<LogMeeting />}
+            />
+
+          </Routes>
+        </div>
+
+      </div>
     </Router>
-
   );
 }
 
-const btn = {
-  padding: "12px 20px",
+const layout = {
+  fontFamily: "Arial, sans-serif"
+};
+
+const navbar = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "15px 30px",
   background: "#667eea",
+  color: "white"
+};
+
+const logo = {
+  fontSize: "20px",
+  fontWeight: "bold"
+};
+
+const navLinks = {
+  display: "flex",
+  gap: "20px"
+};
+
+const link = {
   color: "white",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer"
+  textDecoration: "none",
+  fontWeight: "bold"
+};
+
+const content = {
+  padding: "30px"
 };
