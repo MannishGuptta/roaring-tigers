@@ -3,27 +3,9 @@ import { supabase } from "../supabaseClient";
 
 export default function MeetingLogger() {
 
-const [channelPartners, setChannelPartners] = useState([]);
-const [selectedCP, setSelectedCP] = useState("");
-useEffect(() => {
-  fetchChannelPartners();
-}, []);
+  const [channelPartners, setChannelPartners] = useState([]);
+  const [selectedCP, setSelectedCP] = useState("");
 
-async function fetchChannelPartners() {
-
-  const { data, error } = await supabase
-    .from("channel_partners")
-    .select("id, name");
-
-  if (error) {
-    console.error("Error loading CPs:", error);
-  } else {
-    setChannelPartners(data);
-  }
-
-}
-  const [meetingWith, setMeetingWith] = useState("Channel Partner");
-  const [name, setName] = useState("");
   const [meetingMode, setMeetingMode] = useState("Physical");
   const [notes, setNotes] = useState("");
   const [outcome, setOutcome] = useState("");
@@ -34,181 +16,243 @@ async function fetchChannelPartners() {
   const [followPlace, setFollowPlace] = useState("");
   const [followRemarks, setFollowRemarks] = useState("");
 
+  useEffect(() => {
+    fetchChannelPartners();
+  }, []);
+
+  async function fetchChannelPartners() {
+
+    const { data, error } = await supabase
+      .from("channel_partners")
+      .select("id,name");
+
+    if (error) {
+      console.error("Error loading CPs:", error);
+    } else {
+      setChannelPartners(data);
+    }
+
+  }
+
   async function saveMeeting() {
+
+    if (!selectedCP) {
+      alert("Please select Channel Partner");
+      return;
+    }
 
     let selfieUrl = null;
 
-    try {
+    if (selfie) {
 
-      // Upload selfie ONLY if selected
-      if (selfie) {
+      const fileName = Date.now() + "_" + selfie.name;
 
-        const fileName = `selfie-${Date.now()}`;
+      const { error: uploadError } = await supabase
+        .storage
+        .from("meeting-selfies")
+        .upload(fileName, selfie);
 
-        const { data, error } = await supabase.storage
-          .from("meeting-selfies")
-          .upload(fileName, selfie);
-
-        if (error) {
-          console.error(error);
-        } else {
-          selfieUrl = data.path;
-        }
+      if (uploadError) {
+        alert("Selfie upload failed");
+        console.error(uploadError);
+        return;
       }
 
-      const { error } = await supabase
-        .from("meetings")
-        .insert([
-          {
-            meeting_with: meetingWith,
-            client_name: name,
-            meeting_mode: meetingMode,
-            notes: notes,
-            meeting_outcome: outcome,
-            selfie_url: selfieUrl,
-            followup_date: followDate,
-            followup_time: followTime,
-            followup_place: followPlace,
-            followup_remarks: followRemarks,
-          },
-        ]);
+      const { data } = supabase
+        .storage
+        .from("meeting-selfies")
+        .getPublicUrl(fileName);
 
-      if (error) {
-        alert("Error saving meeting");
-        console.error(error);
-      } else {
-        alert("Meeting saved successfully");
-
-        // Clear form
-        setName("");
-        setNotes("");
-        setOutcome("");
-        setSelfie(null);
-        setFollowDate("");
-        setFollowTime("");
-        setFollowPlace("");
-        setFollowRemarks("");
-      }
-
-    } catch (err) {
-      console.error(err);
+      selfieUrl = data.publicUrl;
     }
+
+    const { error } = await supabase
+      .from("meetings")
+      .insert([
+        {
+          cp_id: selectedCP,
+          meeting_mode: meetingMode,
+          notes: notes,
+          meeting_outcome: outcome,
+          selfie_url: selfieUrl,
+          followup_date: followDate,
+          followup_time: followTime,
+          followup_place: followPlace,
+          followup_remarks: followRemarks
+        }
+      ]);
+
+    if (error) {
+      alert("Error saving meeting");
+      console.error(error);
+    } else {
+      alert("Meeting saved successfully");
+
+      setSelectedCP("");
+      setNotes("");
+      setOutcome("");
+      setSelfie(null);
+      setFollowDate("");
+      setFollowTime("");
+      setFollowPlace("");
+      setFollowRemarks("");
+    }
+
   }
 
   return (
 
-    <div style={{ padding: 40 }}>
+    <div style={container}>
 
       <h1>Log Meeting</h1>
 
-      <div style={form}>
+      {/* Channel Partner */}
 
-        <label>Meeting With</label>
-        <select value={meetingWith} onChange={(e)=>setMeetingWith(e.target.value)}>
-          <option>Channel Partner</option>
-          <option>Client</option>
-          <option>Prospect</option>
-        </select>
+      <label>Select Channel Partner</label>
 
-        <label>Name</label>
-        <input
-          value={name}
-          onChange={(e)=>setName(e.target.value)}
-        />
+      <select
+        value={selectedCP}
+        onChange={(e) => setSelectedCP(e.target.value)}
+        style={input}
+      >
 
-        <label>Meeting Mode</label>
-        <select value={meetingMode} onChange={(e)=>setMeetingMode(e.target.value)}>
-          <option>Physical</option>
-          <option>Online</option>
-        </select>
+        <option value="">Select CP</option>
 
-        <label>Upload Selfie (optional)</label>
-        <input
-          type="file"
-          onChange={(e)=>setSelfie(e.target.files[0])}
-        />
+        {channelPartners.map((cp) => (
+          <option key={cp.id} value={cp.id}>
+            {cp.name}
+          </option>
+        ))}
 
-        <label>Meeting Notes</label>
-        <textarea
-          value={notes}
-          onChange={(e)=>setNotes(e.target.value)}
-        />
+      </select>
 
-        <label>Meeting Outcome</label>
-        <select value={outcome} onChange={(e)=>setOutcome(e.target.value)}>
-          <option value="">Select Outcome</option>
-          <option>Interested</option>
-          <option>Not Interested</option>
-          <option>Deal Won</option>
-          <option>CP Onboarded</option>
-        </select>
+      {/* Meeting Mode */}
 
-      </div>
+      <label>Meeting Mode</label>
 
-      {/* FOLLOW UP */}
+      <select
+        value={meetingMode}
+        onChange={(e) => setMeetingMode(e.target.value)}
+        style={input}
+      >
 
-      {outcome !== "Not Interested" && outcome !== "" && (
+        <option value="Physical">Physical</option>
+        <option value="Online">Online</option>
 
-        <div style={followBox}>
+      </select>
 
-          <h3>Follow-up Details</h3>
+      {/* Notes */}
 
-          <label>Date</label>
-          <input
-            type="date"
-            value={followDate}
-            onChange={(e)=>setFollowDate(e.target.value)}
-          />
+      <label>Meeting Notes</label>
 
-          <label>Time</label>
-          <input
-            type="time"
-            value={followTime}
-            onChange={(e)=>setFollowTime(e.target.value)}
-          />
+      <textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        style={textarea}
+      />
 
-          <label>Place</label>
-          <input
-            value={followPlace}
-            onChange={(e)=>setFollowPlace(e.target.value)}
-          />
+      {/* Outcome */}
 
-          <label>Remarks</label>
-          <textarea
-            value={followRemarks}
-            onChange={(e)=>setFollowRemarks(e.target.value)}
-          />
+      <label>Meeting Outcome</label>
 
-        </div>
+      <select
+        value={outcome}
+        onChange={(e) => setOutcome(e.target.value)}
+        style={input}
+      >
 
-      )}
+        <option value="">Select Outcome</option>
+        <option value="Interested">Interested</option>
+        <option value="Not Interested">Not Interested</option>
+        <option value="Deal Won">Deal Won</option>
+        <option value="CP Onboarded">CP Onboarded</option>
 
-      <button style={btn} onClick={saveMeeting}>
+      </select>
+
+      {/* Selfie */}
+
+      <label>Upload Selfie</label>
+
+      <input
+        type="file"
+        accept="image/*"
+        onChange={(e) => setSelfie(e.target.files[0])}
+      />
+
+      {/* Follow-up */}
+
+      <h3>Follow Up</h3>
+
+      <label>Date</label>
+
+      <input
+        type="date"
+        value={followDate}
+        onChange={(e) => setFollowDate(e.target.value)}
+        style={input}
+      />
+
+      <label>Time</label>
+
+      <input
+        type="time"
+        value={followTime}
+        onChange={(e) => setFollowTime(e.target.value)}
+        style={input}
+      />
+
+      <label>Place</label>
+
+      <input
+        type="text"
+        value={followPlace}
+        onChange={(e) => setFollowPlace(e.target.value)}
+        style={input}
+      />
+
+      <label>Remarks</label>
+
+      <textarea
+        value={followRemarks}
+        onChange={(e) => setFollowRemarks(e.target.value)}
+        style={textarea}
+      />
+
+      <button onClick={saveMeeting} style={button}>
         Save Meeting
       </button>
 
     </div>
+
   );
+
 }
 
-const form = {
-  display: "grid",
-  gap: 10,
-  maxWidth: 400
+const container = {
+  maxWidth: 600,
+  margin: "auto",
+  padding: 40,
+  fontFamily: "Arial"
 };
 
-const followBox = {
-  marginTop: 30,
-  padding: 20,
-  border: "1px solid #ddd",
-  maxWidth: 400
+const input = {
+  width: "100%",
+  padding: 10,
+  marginBottom: 20
 };
 
-const btn = {
-  marginTop: 20,
-  padding: "10px 20px",
+const textarea = {
+  width: "100%",
+  padding: 10,
+  marginBottom: 20,
+  height: 80
+};
+
+const button = {
+  padding: "12px 20px",
   background: "#5c6bc0",
   color: "#fff",
   border: "none",
-  borderRadius: 5
+  borderRadius: 6,
+  cursor: "pointer"
 };
