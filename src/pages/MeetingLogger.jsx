@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { supabase } from "../supabaseClient";
+
+export default function MeetingLogger() {
 const [channelPartners, setChannelPartners] = useState([]);
 const [selectedCP, setSelectedCP] = useState("");
-export default function MeetingLogger() {
-
   const [meetingWith, setMeetingWith] = useState("Channel Partner");
   const [name, setName] = useState("");
   const [meetingMode, setMeetingMode] = useState("Physical");
