@@ -42,7 +42,7 @@ export default function MeetingLogger() {
         .insert([
           {
             meeting_with: meetingWith,
-            name: name,
+            client_name: name,
             meeting_mode: meetingMode,
             notes: notes,
             meeting_outcome: outcome,
